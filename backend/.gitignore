@@ -1,0 +1,8 @@
+node_modules/
+lib/
+.env
+.env.local
+.env.staging
+.env.production
+coverage/
+*.js.map
