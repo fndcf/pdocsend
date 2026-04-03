@@ -49,6 +49,11 @@ Sistema whitelabel multi-tenant para leitura de PDFs imobiliarios e envio automa
 - Configuracao de limite diario por tenant
 - Configuracao de Z-API por tenant
 
+### Filtro de Operacao
+- Seletor na tela de Upload: Todos, Apenas Venda, Apenas Locacao
+- Imoveis com "venda e locacao" sao ajustados para a operacao selecionada
+- Mensagem enviada respeita o filtro (ex: so menciona "venda" mesmo que tenha locacao)
+
 ### Dashboard do Cliente
 - Mensagens enviadas hoje / limite diario (com barra de progresso)
 - Total enviado no mes
@@ -74,7 +79,7 @@ Sistema whitelabel multi-tenant para leitura de PDFs imobiliarios e envio automa
 | TypeScript | 5.3.x |
 | Firebase Admin SDK | 12.0.x |
 | Firebase Functions | 7.0.x (Gen 2) |
-| pdf.js-extract | latest |
+| pdf.js-extract | latest (engine Mozilla) |
 | @google-cloud/tasks | 5.1.x |
 | Jest | 29.7.x |
 
@@ -168,7 +173,7 @@ imobi-whatsapp/
 │   │   ├── pages/
 │   │   │   ├── Login/               # Login + recuperacao de senha
 │   │   │   ├── Register/            # Registro + tela de sucesso
-│   │   │   ├── Upload/              # Upload PDF + dashboard cards
+│   │   │   ├── Upload/              # Upload PDF + dashboard + filtro de operacao
 │   │   │   ├── Revisao/             # Revisao de contatos antes do envio
 │   │   │   ├── Envio/               # Progresso do envio (onSnapshot)
 │   │   │   ├── Historico/           # Lista de lotes
@@ -299,7 +304,7 @@ npm run test:coverage       # Com cobertura
 
 ## Cobertura de Testes
 
-### Backend (10 suites, 103 testes)
+### Backend (10 suites, 103+ testes)
 
 | Area | Statements | Branches | Lines |
 |------|-----------|----------|-------|
@@ -422,8 +427,7 @@ users/{uid}
 
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Arquitetura detalhada e guia de implementacao
 - [SETUP.md](SETUP.md) - Guia completo de setup para producao
-- [STATUS_PROJETO.md](STATUS_PROJETO.md) - Status atual e roadmap
-- [PLANO_PROJETO.md](PLANO_PROJETO.md) - Plano original do projeto
+
 
 ---
 

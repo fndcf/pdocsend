@@ -63,6 +63,7 @@ Parametros:
 4. Anote:
    - **Instance ID**: aparece na URL da instancia
    - **Token**: aparece nas configuracoes da instancia
+   - **Client Token**: em Seguranca > Token de seguranca da conta (ativar se necessario)
 
 ---
 
@@ -83,15 +84,31 @@ O script cria o tenant e vincula ao usuario:
 
 ```bash
 cd backend
+$env:GOOGLE_APPLICATION_CREDENTIALS="serviceAccount.json"
 npx ts-node scripts/seed-tenant.ts \
   --uid="UID_DO_USUARIO" \
-  --nome="Imobiliaria" \
-  --corretor="Corretor" \
-  --empresa="Imobiliaria" \
+  --nome="Nome da Imobiliaria" \
+  --corretor="Nome do Corretor" \
+  --empresa="nome da empresa" \
   --cargo="corretor" \
   --zapiInstanceId="SEU_INSTANCE_ID" \
-  --zapiToken="SEU_TOKEN"
+  --zapiToken="SEU_TOKEN" \
+  --zapiClientToken="SEU_CLIENT_TOKEN"
 ```
+
+**Nota**: O `GOOGLE_APPLICATION_CREDENTIALS` e necessario para rodar scripts contra producao. Use o `serviceAccount.json` baixado do Firebase Console.
+
+### 5.3 Criar superadmin (opcional)
+
+Para criar um usuario com acesso ao painel admin:
+
+```bash
+npx ts-node scripts/seed-superadmin.ts \
+  --uid="UID_DO_ADMIN" \
+  --email="admin@email.com"
+```
+
+O superadmin acessa `/admin` e pode gerenciar todos os tenants.
 
 Ou criar manualmente no Firebase Console > Firestore:
 
@@ -99,12 +116,14 @@ Ou criar manualmente no Firebase Console > Firestore:
 ```
 Document ID: (auto)
 {
-  nome: "Imobiliaria",
+  nome: "Nome da Imobiliaria",
   zapiInstanceId: "SEU_INSTANCE_ID",
   zapiToken: "SEU_TOKEN",
+  zapiClientToken: "SEU_CLIENT_TOKEN",
+  limiteDiario: 200,
   mensagemTemplate: {
-    nomeCorretor: "Corretor",
-    nomeEmpresa: "Imobiliaria",
+    nomeCorretor: "Nome do Corretor",
+    nomeEmpresa: "nome da empresa",
     cargo: "corretor"
   },
   criadoEm: (timestamp)

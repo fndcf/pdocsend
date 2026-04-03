@@ -1,7 +1,7 @@
 # Arquitetura - PDocSend
 
 > Documento de referencia para manter consistencia em novas implementacoes.
-> Ultima atualizacao: 03/04/2026
+> Ultima atualizacao: 04/04/2026
 
 ---
 
@@ -321,6 +321,23 @@ Calculada no momento do envio (fuso Brasilia):
 - Antes das 12h → "Bom dia"
 - 12h-18h → "Boa tarde"
 - Apos 18h → "Boa noite"
+
+### Filtro de Operacao
+
+O corretor pode filtrar imoveis por tipo de operacao na tela de Upload:
+
+| Filtro | Comportamento |
+|--------|-------------|
+| Todos | Inclui todos os imoveis com operacao |
+| Apenas Venda | Inclui venda e "venda e locacao" (ajustando para so venda) |
+| Apenas Locacao | Inclui locacao e "venda e locacao" (ajustando para so locacao) |
+
+Implementado no `PdfController.processar()`:
+- Recebe `filtroOperacao` via FormData
+- Filtra imoveis apos o `DataCleanerService.processar()`
+- Ajusta a operacao de "venda e locacao" para a operacao filtrada
+- Remove valores monetarios da operacao nao selecionada
+- A mensagem gerada reflete apenas a operacao filtrada
 
 ---
 
