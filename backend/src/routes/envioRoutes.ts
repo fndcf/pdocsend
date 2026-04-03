@@ -34,4 +34,9 @@ router.get("/contato/:telefone", requireAuth, (req, res) =>
   envioController.historicoPorContato(req as AuthRequest, res)
 );
 
+// GET /api/envios/dashboard - Métricas do dashboard
+router.get("/dashboard", requireAuth, (req, res) =>
+  envioController.dashboard(req as AuthRequest, res)
+);
+
 export default router;

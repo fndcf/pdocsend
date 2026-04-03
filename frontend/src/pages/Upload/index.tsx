@@ -1,7 +1,7 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import { Upload as UploadIcon, FileText, AlertCircle, LogOut, History } from "lucide-react";
+import { Upload as UploadIcon, FileText, AlertCircle, LogOut, History, Send, Calendar, FileBarChart, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/hooks/useTenant";
 import { TenantGuard } from "@/components/TenantGuard";
@@ -19,14 +19,28 @@ interface ProcessarResponse {
   pdfOrigem: string;
 }
 
+interface DashboardData {
+  enviadosHoje: number;
+  limiteDiario: number;
+  enviadosMes: number;
+  errosMes: number;
+  totalPdfs: number;
+  ultimoEnvio: { seconds: number } | null;
+}
+
 export function Upload() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { logout } = useAuth();
   const { loading: tenantLoading, error: tenantError, isSuperAdmin } = useTenant();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    apiClient.get<DashboardData>("/envios/dashboard").then(setDashboard).catch(() => {});
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -139,6 +153,47 @@ export function Upload() {
           </HeaderButton>
         </HeaderActions>
       </Header>
+
+        {dashboard && (
+          <DashboardCards>
+            <DashCard>
+              <DashIcon $color="blue"><Send size={18} /></DashIcon>
+              <DashInfo>
+                <DashValue>{dashboard.enviadosHoje} / {dashboard.limiteDiario}</DashValue>
+                <DashLabel>Enviados hoje</DashLabel>
+              </DashInfo>
+              <DashProgress>
+                <DashProgressBar $percent={Math.min(100, (dashboard.enviadosHoje / dashboard.limiteDiario) * 100)} />
+              </DashProgress>
+            </DashCard>
+            <DashCard>
+              <DashIcon $color="green"><Calendar size={18} /></DashIcon>
+              <DashInfo>
+                <DashValue>{dashboard.enviadosMes}</DashValue>
+                <DashLabel>Enviados no mês</DashLabel>
+              </DashInfo>
+            </DashCard>
+            <DashCard>
+              <DashIcon $color="purple"><FileBarChart size={18} /></DashIcon>
+              <DashInfo>
+                <DashValue>{dashboard.totalPdfs}</DashValue>
+                <DashLabel>PDFs processados</DashLabel>
+              </DashInfo>
+            </DashCard>
+            <DashCard>
+              <DashIcon $color="gray"><Clock size={18} /></DashIcon>
+              <DashInfo>
+                <DashValue $small>
+                  {dashboard.ultimoEnvio
+                    ? new Date((dashboard.ultimoEnvio as {seconds: number}).seconds * 1000).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                    : "—"}
+                </DashValue>
+                <DashLabel>Último envio</DashLabel>
+              </DashInfo>
+            </DashCard>
+          </DashboardCards>
+        )}
+
         <Content>
           <Title>Processar PDF</Title>
           <Description>
@@ -231,6 +286,81 @@ const LoadingText = styled.p`
   color: ${({ theme }) => theme.colors.textSecondary};
   text-align: center;
   line-height: 1.5;
+`;
+
+const DashboardCards = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  max-width: 600px;
+  margin: 1rem auto;
+  padding: 0 1rem;
+
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(4, 1fr);
+    padding: 0 1.5rem;
+    margin: 1.5rem auto;
+  }
+`;
+
+const DashCard = styled.div`
+  background: ${({ theme }) => theme.colors.surface};
+  border-radius: ${({ theme }) => theme.borderRadius.lg};
+  padding: 0.75rem;
+  box-shadow: ${({ theme }) => theme.shadows.sm};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+
+  @media (min-width: 640px) {
+    padding: 1rem;
+  }
+`;
+
+const DashIcon = styled.div<{ $color: string }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  margin-bottom: 0.5rem;
+  color: ${(p) =>
+    p.$color === "blue" ? "#2563eb" :
+    p.$color === "green" ? "#16a34a" :
+    p.$color === "purple" ? "#7c3aed" : "#6b7280"};
+  background: ${(p) =>
+    p.$color === "blue" ? "#eff6ff" :
+    p.$color === "green" ? "#f0fdf4" :
+    p.$color === "purple" ? "#f5f3ff" : "#f9fafb"};
+`;
+
+const DashInfo = styled.div``;
+
+const DashValue = styled.div<{ $small?: boolean }>`
+  font-size: ${(p) => p.$small ? p.theme.fontSize.sm : "1.25rem"};
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.text};
+`;
+
+const DashLabel = styled.div`
+  font-size: ${({ theme }) => theme.fontSize.xs};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  margin-top: 0.125rem;
+`;
+
+const DashProgress = styled.div`
+  height: 4px;
+  background: ${({ theme }) => theme.colors.borderLight};
+  border-radius: 2px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+`;
+
+const DashProgressBar = styled.div<{ $percent: number }>`
+  height: 100%;
+  width: ${(p) => p.$percent}%;
+  background: ${(p) => p.$percent > 80 ? "#f59e0b" : p.$percent > 95 ? "#dc2626" : "#2563eb"};
+  border-radius: 2px;
+  transition: width 0.3s;
 `;
 
 const Header = styled.header`

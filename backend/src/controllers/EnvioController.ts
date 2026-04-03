@@ -392,6 +392,72 @@ class EnvioController {
       ResponseHelper.internalError(res, "Erro ao buscar histórico");
     }
   }
+
+  /**
+   * Dashboard - métricas do tenant
+   * GET /api/envios/dashboard
+   */
+  async dashboard(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { tenantId } = req.user;
+
+      // Buscar limite diário do tenant
+      const tenantDoc = await db.collection("tenants").doc(tenantId).get();
+      const limiteDiario = tenantDoc.data()?.limiteDiario || 200;
+
+      // Início de hoje e início do mês
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const inicioHoje = Timestamp.fromDate(hoje);
+
+      const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      const inicioMesTs = Timestamp.fromDate(inicioMes);
+
+      // Buscar lotes de hoje
+      const lotesHoje = await db
+        .collection(`tenants/${tenantId}/lotes`)
+        .where("criadoEm", ">=", inicioHoje)
+        .get();
+
+      let enviadosHoje = 0;
+      for (const doc of lotesHoje.docs) {
+        enviadosHoje += doc.data().enviados || 0;
+      }
+
+      // Buscar lotes do mês
+      const lotesMes = await db
+        .collection(`tenants/${tenantId}/lotes`)
+        .where("criadoEm", ">=", inicioMesTs)
+        .get();
+
+      let enviadosMes = 0;
+      let errosMes = 0;
+      let totalPdfs = 0;
+      let ultimoEnvio: unknown = null;
+
+      for (const doc of lotesMes.docs) {
+        const data = doc.data();
+        enviadosMes += data.enviados || 0;
+        errosMes += data.erros || 0;
+        totalPdfs++;
+        if (!ultimoEnvio || (data.criadoEm && data.criadoEm > (ultimoEnvio as FirebaseFirestore.Timestamp))) {
+          ultimoEnvio = data.criadoEm;
+        }
+      }
+
+      ResponseHelper.success(res, {
+        enviadosHoje,
+        limiteDiario,
+        enviadosMes,
+        errosMes,
+        totalPdfs,
+        ultimoEnvio,
+      });
+    } catch (error) {
+      logger.error("Erro ao buscar dashboard", { tenantId: req.user?.tenantId }, error);
+      ResponseHelper.internalError(res, "Erro ao buscar métricas");
+    }
+  }
 }
 
 export default new EnvioController();
