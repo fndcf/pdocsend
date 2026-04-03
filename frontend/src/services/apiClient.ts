@@ -22,9 +22,14 @@ class ApiClient {
     });
   }
 
-  async upload<T>(url: string, file: File): Promise<T> {
+  async upload<T>(url: string, file: File, fields?: Record<string, string>): Promise<T> {
     const formData = new FormData();
     formData.append("file", file);
+    if (fields) {
+      for (const [key, value] of Object.entries(fields)) {
+        formData.append(key, value);
+      }
+    }
 
     const response = await this.client.post<ApiResponse<T>>(url, formData, {
       headers: { "Content-Type": undefined },

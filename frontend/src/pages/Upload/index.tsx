@@ -30,6 +30,7 @@ interface DashboardData {
 
 export function Upload() {
   const [file, setFile] = useState<File | null>(null);
+  const [filtroOperacao, setFiltroOperacao] = useState<"todos" | "venda" | "locacao">("todos");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -76,7 +77,8 @@ export function Upload() {
     try {
       const resultado = await apiClient.upload<ProcessarResponse>(
         "/pdf/processar",
-        file
+        file,
+        { filtroOperacao }
       );
 
       // Navegar para revisão com os dados
@@ -206,6 +208,21 @@ export function Upload() {
             Faça upload de um PDF com dados de imóveis para extrair contatos e
             enviar mensagens via WhatsApp.
           </Description>
+
+          <FilterGroup>
+            <FilterLabel>Tipo de operação:</FilterLabel>
+            <FilterOptions>
+              <FilterOption $active={filtroOperacao === "todos"} onClick={() => setFiltroOperacao("todos")}>
+                Todos
+              </FilterOption>
+              <FilterOption $active={filtroOperacao === "venda"} onClick={() => setFiltroOperacao("venda")}>
+                Apenas Venda
+              </FilterOption>
+              <FilterOption $active={filtroOperacao === "locacao"} onClick={() => setFiltroOperacao("locacao")}>
+                Apenas Locação
+              </FilterOption>
+            </FilterOptions>
+          </FilterGroup>
 
           <DropZone
             onClick={() => fileInputRef.current?.click()}
@@ -414,6 +431,38 @@ const HeaderButton = styled.button`
   &:hover {
     background: ${({ theme }) => theme.colors.borderLight};
     color: ${({ theme }) => theme.colors.text};
+  }
+`;
+
+const FilterGroup = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const FilterLabel = styled.div`
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.text};
+  margin-bottom: 0.5rem;
+`;
+
+const FilterOptions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+`;
+
+const FilterOption = styled.button<{ $active: boolean }>`
+  padding: 0.5rem 1rem;
+  border: 1px solid ${(p) => p.$active ? p.theme.colors.primary : p.theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  background: ${(p) => p.$active ? p.theme.colors.primary : "white"};
+  color: ${(p) => p.$active ? "white" : p.theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.primary};
   }
 `;
 

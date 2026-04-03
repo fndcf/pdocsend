@@ -20,6 +20,11 @@ export function uploadPdf(req: Request, res: Response, next: NextFunction): void
   let fileName = "";
   let fileMimeType = "";
   let fileSize = 0;
+  const formFields: Record<string, string> = {};
+
+  busboy.on("field", (fieldname: string, val: string) => {
+    formFields[fieldname] = val;
+  });
 
   busboy.on("file", (_fieldname, file, info) => {
     const { filename, mimeType } = info;
@@ -71,6 +76,7 @@ export function uploadPdf(req: Request, res: Response, next: NextFunction): void
       mimetype: fileMimeType,
       size: fileSize,
     };
+    (req as unknown as Record<string, unknown>).formFields = formFields;
 
     next();
   });

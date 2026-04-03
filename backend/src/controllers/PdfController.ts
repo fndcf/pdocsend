@@ -27,10 +27,14 @@ class PdfController {
         return;
       }
 
+      const formFields = (req as unknown as Record<string, unknown>).formFields as Record<string, string> || {};
+      const filtroOperacao = formFields.filtroOperacao || "todos";
+
       logger.info("Processando PDF", {
         tenantId,
         fileName: file.originalname,
         fileSize: file.size,
+        filtroOperacao,
       });
 
       // 1. Extrair dados brutos do PDF
@@ -45,12 +49,44 @@ class PdfController {
       }
 
       // 2. Limpar, normalizar e agrupar
-      const contatos = dataCleanerService.processar(brutos);
+      let contatos = dataCleanerService.processar(brutos);
+
+      // 3. Aplicar filtro de operação
+      if (filtroOperacao !== "todos") {
+        contatos = contatos
+          .map((contato) => ({
+            ...contato,
+            imoveis: contato.imoveis
+              .filter((im) => {
+                if (filtroOperacao === "venda") {
+                  return im.operacao === "venda" || im.operacao === "venda e locacao";
+                }
+                if (filtroOperacao === "locacao") {
+                  return im.operacao === "locacao" || im.operacao === "venda e locacao";
+                }
+                return true;
+              })
+              .map((im) => {
+                // Ajustar operação para quem tem ambos
+                if (im.operacao === "venda e locacao") {
+                  return {
+                    ...im,
+                    operacao: filtroOperacao as "venda" | "locacao",
+                    // Limpar o valor que não é da operação filtrada
+                    valorVenda: filtroOperacao === "venda" ? im.valorVenda : "",
+                    valorLocacao: filtroOperacao === "locacao" ? im.valorLocacao : "",
+                  };
+                }
+                return im;
+              }),
+          }))
+          .filter((contato) => contato.imoveis.length > 0);
+      }
 
       if (contatos.length === 0) {
         ResponseHelper.badRequest(
           res,
-          "Nenhum contato válido encontrado. Verifique se os imóveis possuem proprietário, telefone e valor de venda ou locação."
+          `Nenhum contato encontrado com operação de ${filtroOperacao === "venda" ? "venda" : "locação"}. Tente com outro filtro.`
         );
         return;
       }
