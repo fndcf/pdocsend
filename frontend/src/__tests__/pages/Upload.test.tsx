@@ -33,7 +33,17 @@ jest.mock("@/hooks/useTenant", () => ({
 
 jest.mock("@/services/apiClient", () => ({
   __esModule: true,
-  default: { upload: jest.fn() },
+  default: {
+    upload: jest.fn(),
+    get: jest.fn().mockResolvedValue({
+      enviadosHoje: 5,
+      limiteDiario: 200,
+      enviadosMes: 42,
+      errosMes: 1,
+      totalPdfs: 3,
+      ultimoEnvio: { seconds: 1743550000 },
+    }),
+  },
 }));
 
 jest.mock("@/components/TenantGuard", () => ({
