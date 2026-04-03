@@ -25,7 +25,7 @@ interface DashboardData {
   enviadosMes: number;
   errosMes: number;
   totalPdfs: number;
-  ultimoEnvio: { seconds: number } | null;
+  ultimoEnvio: unknown;
 }
 
 export function Upload() {
@@ -185,7 +185,13 @@ export function Upload() {
               <DashInfo>
                 <DashValue $small>
                   {dashboard.ultimoEnvio
-                    ? new Date((dashboard.ultimoEnvio as {seconds: number}).seconds * 1000).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                    ? (() => {
+                        const ts = dashboard.ultimoEnvio as Record<string, unknown>;
+                        const secs = (ts.seconds || ts._seconds) as number | undefined;
+                        if (secs) return new Date(secs * 1000).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+                        const d = new Date(ts as unknown as string | number);
+                        return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+                      })()
                     : "—"}
                 </DashValue>
                 <DashLabel>Último envio</DashLabel>
