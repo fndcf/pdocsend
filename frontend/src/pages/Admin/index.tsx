@@ -510,6 +510,7 @@ const HeaderTitle = styled.h1`
   font-size: ${({ theme }) => theme.fontSize.lg};
   font-weight: 700;
   flex: 1;
+  text-align: center;
 `;
 
 const LogoutButton = styled.button`

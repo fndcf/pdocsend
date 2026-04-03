@@ -276,9 +276,11 @@ const Header = styled.header`
 const HeaderTitle = styled.h1`
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   font-size: ${({ theme }) => theme.fontSize.md};
   font-weight: 700;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -358,6 +358,8 @@ const Header = styled.header`
 const HeaderTitle = styled.h1`
   font-size: ${({ theme }) => theme.fontSize.md};
   font-weight: 700;
+  flex: 1;
+  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
