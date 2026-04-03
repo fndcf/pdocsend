@@ -5,6 +5,8 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface UseTenantReturn {
   tenantId: string | null;
+  role: string | null;
+  isSuperAdmin: boolean;
   loading: boolean;
   error: string | null;
 }
@@ -12,6 +14,7 @@ interface UseTenantReturn {
 export function useTenant(): UseTenantReturn {
   const { user } = useAuth();
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +29,12 @@ export function useTenant(): UseTenantReturn {
       (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          if (data?.tenantId) {
+          setRole(data?.role || "admin");
+
+          if (data?.role === "superadmin") {
+            setTenantId(null);
+            setError(null);
+          } else if (data?.tenantId) {
             setTenantId(data.tenantId);
             setError(null);
           } else {
@@ -46,5 +54,5 @@ export function useTenant(): UseTenantReturn {
     return unsubscribe;
   }, [user]);
 
-  return { tenantId, loading, error };
+  return { tenantId, role, isSuperAdmin: role === "superadmin", loading, error };
 }

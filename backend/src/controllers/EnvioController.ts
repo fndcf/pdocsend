@@ -44,6 +44,32 @@ class EnvioController {
         return;
       }
 
+      // Verificar rate limiting
+      const limiteDiario = tenantData.limiteDiario || 200;
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const inicioHoje = Timestamp.fromDate(hoje);
+
+      const lotesHoje = await db
+        .collection(`tenants/${tenantId}/lotes`)
+        .where("criadoEm", ">=", inicioHoje)
+        .get();
+
+      let enviadosHoje = 0;
+      for (const loteDoc of lotesHoje.docs) {
+        const lote = loteDoc.data();
+        enviadosHoje += lote.totalEnvios || 0;
+      }
+
+      if (enviadosHoje + contatosParaEnviar.length > limiteDiario) {
+        const restante = Math.max(0, limiteDiario - enviadosHoje);
+        ResponseHelper.badRequest(
+          res,
+          `Limite diário de ${limiteDiario} mensagens atingido. Você já agendou ${enviadosHoje} hoje. Restam ${restante} envios disponíveis.`
+        );
+        return;
+      }
+
       const agora = Timestamp.now();
 
       // 1. Criar lote
@@ -182,6 +208,188 @@ class EnvioController {
     } catch (error) {
       logger.error("Erro ao buscar detalhes do lote", { loteId: req.params.id }, error);
       ResponseHelper.internalError(res, "Erro ao buscar detalhes do lote");
+    }
+  }
+
+  /**
+   * Cancelar lote em andamento
+   * POST /api/envios/lotes/:id/cancelar
+   */
+  async cancelarLote(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { tenantId } = req.user;
+      const { id } = req.params;
+
+      const loteRef = db.collection(`tenants/${tenantId}/lotes`).doc(id);
+      const loteDoc = await loteRef.get();
+
+      if (!loteDoc.exists) {
+        ResponseHelper.notFound(res, "Lote não encontrado");
+        return;
+      }
+
+      const loteData = loteDoc.data();
+      if (loteData?.status !== "em_andamento") {
+        ResponseHelper.badRequest(res, "Lote não está em andamento");
+        return;
+      }
+
+      // Marcar todos os envios pendentes como cancelados
+      const enviosSnapshot = await db
+        .collection(`tenants/${tenantId}/lotes/${id}/envios`)
+        .where("status", "in", ["pendente", "enviando"])
+        .get();
+
+      const batch = db.batch();
+      let cancelados = 0;
+      for (const envioDoc of enviosSnapshot.docs) {
+        batch.update(envioDoc.ref, { status: "cancelado" });
+        cancelados++;
+      }
+      await batch.commit();
+
+      // Recontar totais
+      const todosEnvios = await db
+        .collection(`tenants/${tenantId}/lotes/${id}/envios`)
+        .get();
+
+      let enviados = 0;
+      let erros = 0;
+      for (const doc of todosEnvios.docs) {
+        const status = doc.data().status;
+        if (status === "enviado") enviados++;
+        else if (status === "erro") erros++;
+      }
+
+      await loteRef.update({
+        status: "finalizado",
+        enviados,
+        erros,
+        finalizadoEm: Timestamp.now(),
+      });
+
+      logger.info("Lote cancelado", { tenantId, loteId: id, cancelados });
+
+      ResponseHelper.success(res, null, `Envio cancelado. ${cancelados} mensagem(ns) cancelada(s)`);
+    } catch (error) {
+      logger.error("Erro ao cancelar lote", { loteId: req.params.id }, error);
+      ResponseHelper.internalError(res, "Erro ao cancelar lote");
+    }
+  }
+
+  /**
+   * Cancelar envio individual
+   * POST /api/envios/lotes/:id/envios/:envioId/cancelar
+   */
+  async cancelarEnvio(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { tenantId } = req.user;
+      const { id, envioId } = req.params;
+
+      const envioRef = db
+        .collection(`tenants/${tenantId}/lotes/${id}/envios`)
+        .doc(envioId);
+      const envioDoc = await envioRef.get();
+
+      if (!envioDoc.exists) {
+        ResponseHelper.notFound(res, "Envio não encontrado");
+        return;
+      }
+
+      const envioData = envioDoc.data();
+      if (envioData?.status !== "pendente") {
+        ResponseHelper.badRequest(res, "Apenas envios pendentes podem ser cancelados");
+        return;
+      }
+
+      await envioRef.update({ status: "cancelado" });
+
+      // Verificar se todos os envios foram processados para finalizar o lote
+      const loteRef = db.collection(`tenants/${tenantId}/lotes`).doc(id);
+      const enviosSnapshot = await db
+        .collection(`tenants/${tenantId}/lotes/${id}/envios`)
+        .get();
+
+      let enviados = 0;
+      let erros = 0;
+      let cancelados = 0;
+      for (const doc of enviosSnapshot.docs) {
+        const status = doc.data().status;
+        if (status === "enviado") enviados++;
+        else if (status === "erro") erros++;
+        else if (status === "cancelado") cancelados++;
+      }
+
+      await loteRef.update({ enviados, erros });
+
+      const loteDoc = await loteRef.get();
+      const loteData = loteDoc.data();
+      const processados = enviados + erros + cancelados;
+      if (loteData && processados >= loteData.totalEnvios) {
+        await loteRef.update({
+          status: "finalizado",
+          finalizadoEm: Timestamp.now(),
+        });
+      }
+
+      logger.info("Envio individual cancelado", { tenantId, loteId: id, envioId });
+
+      ResponseHelper.success(res, null, "Envio cancelado");
+    } catch (error) {
+      logger.error("Erro ao cancelar envio", { envioId: req.params.envioId }, error);
+      ResponseHelper.internalError(res, "Erro ao cancelar envio");
+    }
+  }
+
+  /**
+   * Histórico de envios por telefone
+   * GET /api/envios/contato/:telefone
+   */
+  async historicoPorContato(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { tenantId } = req.user;
+      const { telefone } = req.params;
+
+      // Buscar todos os imóveis enviados para este telefone
+      const imoveisSnapshot = await db
+        .collection(`tenants/${tenantId}/imoveis_enviados`)
+        .where("telefone", "==", telefone)
+        .get();
+
+      if (imoveisSnapshot.empty) {
+        ResponseHelper.success(res, { envios: [], total: 0 });
+        return;
+      }
+
+      // Agrupar por loteId para buscar detalhes
+      const loteIds = new Set<string>();
+      const imoveis = imoveisSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        loteIds.add(data.loteId);
+        return { id: doc.id, ...data };
+      });
+
+      // Buscar detalhes dos lotes
+      const lotes: Record<string, unknown> = {};
+      for (const loteId of loteIds) {
+        const loteDoc = await db
+          .collection(`tenants/${tenantId}/lotes`)
+          .doc(loteId)
+          .get();
+        if (loteDoc.exists) {
+          lotes[loteId] = { id: loteDoc.id, ...loteDoc.data() };
+        }
+      }
+
+      ResponseHelper.success(res, {
+        telefone,
+        envios: imoveis,
+        lotes,
+        total: imoveis.length,
+      });
+    } catch (error) {
+      logger.error("Erro ao buscar histórico por contato", { telefone: req.params.telefone }, error);
+      ResponseHelper.internalError(res, "Erro ao buscar histórico");
     }
   }
 }

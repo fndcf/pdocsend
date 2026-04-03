@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { Upload as UploadIcon, FileText, AlertCircle, LogOut, History } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTenant } from "@/hooks/useTenant";
+import { TenantGuard } from "@/components/TenantGuard";
 import apiClient from "@/services/apiClient";
 import { ContatoComStatus } from "@/types";
 
@@ -23,6 +25,7 @@ export function Upload() {
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { logout } = useAuth();
+  const { loading: tenantLoading, error: tenantError, isSuperAdmin } = useTenant();
   const navigate = useNavigate();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,14 +69,60 @@ export function Upload() {
       navigate("/revisao", {
         state: resultado,
       });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Erro ao processar PDF";
+    } catch (err: unknown) {
+      let message = "Erro ao processar PDF";
+      if (err instanceof Error) {
+        if (err.message.includes("500")) {
+          message = "Erro interno do servidor. Tente novamente em alguns instantes.";
+        } else if (err.message.includes("413") || err.message.includes("grande")) {
+          message = "Arquivo muito grande. O tamanho máximo é 10MB.";
+        } else if (err.message.includes("401") || err.message.includes("autorizado")) {
+          message = "Sessão expirada. Faça login novamente.";
+        } else if (err.message.includes("Network") || err.message.includes("network")) {
+          message = "Erro de conexão. Verifique sua internet e tente novamente.";
+        } else {
+          message = err.message;
+        }
+      }
       setError(message);
     } finally {
       setLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <Container>
+        <LoadingOverlay>
+          <LoadingContent>
+            <UploadIcon size={48} color="#2563eb" className="spin" />
+            <LoadingTitle>Processando PDF...</LoadingTitle>
+            <LoadingText>
+              Extraindo dados de imóveis e preparando contatos.
+              <br />
+              Isso pode levar alguns segundos.
+            </LoadingText>
+          </LoadingContent>
+        </LoadingOverlay>
+      </Container>
+    );
+  }
+
+  // Superadmin redireciona para painel admin
+  if (!tenantLoading && isSuperAdmin) {
+    navigate("/admin");
+    return null;
+  }
+
+  if (tenantLoading || tenantError) {
+    return (
+      <Container>
+        <TenantGuard loading={tenantLoading} error={tenantError}>
+          <div />
+        </TenantGuard>
+      </Container>
+    );
+  }
 
   return (
     <Container>
@@ -90,54 +139,53 @@ export function Upload() {
           </HeaderButton>
         </HeaderActions>
       </Header>
+        <Content>
+          <Title>Processar PDF</Title>
+          <Description>
+            Faça upload de um PDF com dados de imóveis para extrair contatos e
+            enviar mensagens via WhatsApp.
+          </Description>
 
-      <Content>
-        <Title>Processar PDF</Title>
-        <Description>
-          Faça upload de um PDF com dados de imóveis para extrair contatos e
-          enviar mensagens via WhatsApp.
-        </Description>
+          <DropZone
+            onClick={() => fileInputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={(e) => e.preventDefault()}
+            $hasFile={!!file}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              onChange={handleFileChange}
+              style={{ display: "none" }}
+            />
 
-        <DropZone
-          onClick={() => fileInputRef.current?.click()}
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          $hasFile={!!file}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf"
-            onChange={handleFileChange}
-            style={{ display: "none" }}
-          />
+            {file ? (
+              <FileInfo>
+                <FileText size={32} color="#16a34a" />
+                <FileName>{file.name}</FileName>
+                <FileSize>({(file.size / 1024 / 1024).toFixed(2)} MB)</FileSize>
+              </FileInfo>
+            ) : (
+              <DropContent>
+                <UploadIcon size={40} color="#9ca3af" />
+                <DropText>Arraste o PDF aqui ou clique para selecionar</DropText>
+                <DropSubtext>Apenas arquivos PDF (máx. 10MB)</DropSubtext>
+              </DropContent>
+            )}
+          </DropZone>
 
-          {file ? (
-            <FileInfo>
-              <FileText size={32} color="#16a34a" />
-              <FileName>{file.name}</FileName>
-              <FileSize>({(file.size / 1024 / 1024).toFixed(2)} MB)</FileSize>
-            </FileInfo>
-          ) : (
-            <DropContent>
-              <UploadIcon size={40} color="#9ca3af" />
-              <DropText>Arraste o PDF aqui ou clique para selecionar</DropText>
-              <DropSubtext>Apenas arquivos PDF (máx. 10MB)</DropSubtext>
-            </DropContent>
+          {error && (
+            <ErrorBox>
+              <AlertCircle size={16} />
+              {error}
+            </ErrorBox>
           )}
-        </DropZone>
 
-        {error && (
-          <ErrorBox>
-            <AlertCircle size={16} />
-            {error}
-          </ErrorBox>
-        )}
-
-        <Button onClick={handleProcessar} disabled={!file || loading}>
-          {loading ? "Processando..." : "Processar PDF"}
-        </Button>
-      </Content>
+          <Button onClick={handleProcessar} disabled={!file || loading}>
+            {loading ? "Processando..." : "Processar PDF"}
+          </Button>
+        </Content>
     </Container>
   );
 }
@@ -147,13 +195,55 @@ const Container = styled.div`
   background: ${({ theme }) => theme.colors.background};
 `;
 
+const LoadingOverlay = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+
+  .spin {
+    animation: spin 2s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`;
+
+const LoadingContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem;
+`;
+
+const LoadingTitle = styled.h2`
+  font-size: ${({ theme }) => theme.fontSize.xl};
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.text};
+`;
+
+const LoadingText = styled.p`
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  text-align: center;
+  line-height: 1.5;
+`;
+
 const Header = styled.header`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 2rem;
+  padding: 0.75rem 1rem;
   background: ${({ theme }) => theme.colors.surface};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  @media (min-width: 640px) {
+    padding: 1rem 2rem;
+  }
 `;
 
 const Logo = styled.h1`
@@ -171,14 +261,19 @@ const HeaderButton = styled.button`
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.375rem 0.5rem;
   background: none;
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.borderRadius.md};
   color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => theme.fontSize.sm};
+  font-size: ${({ theme }) => theme.fontSize.xs};
   font-weight: 500;
   transition: all 0.2s;
+
+  @media (min-width: 640px) {
+    padding: 0.5rem 0.75rem;
+    font-size: ${({ theme }) => theme.fontSize.sm};
+  }
 
   &:hover {
     background: ${({ theme }) => theme.colors.borderLight};
@@ -188,8 +283,13 @@ const HeaderButton = styled.button`
 
 const Content = styled.main`
   max-width: 600px;
-  margin: 3rem auto;
-  padding: 0 1.5rem;
+  margin: 1.5rem auto;
+  padding: 0 1rem;
+
+  @media (min-width: 640px) {
+    margin: 3rem auto;
+    padding: 0 1.5rem;
+  }
 `;
 
 const Title = styled.h2`

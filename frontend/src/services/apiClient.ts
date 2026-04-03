@@ -42,6 +42,11 @@ class ApiClient {
     const response = await this.client.post<ApiResponse<T>>(url, data);
     return response.data.data as T;
   }
+
+  async put<T>(url: string, data: unknown): Promise<T> {
+    const response = await this.client.put<ApiResponse<T>>(url, data);
+    return response.data.data as T;
+  }
 }
 
 export default new ApiClient();

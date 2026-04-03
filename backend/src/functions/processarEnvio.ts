@@ -4,7 +4,7 @@
 
 import { onRequest } from "firebase-functions/v2/https";
 import { db } from "../config/firebase";
-import { Timestamp, FieldValue } from "firebase-admin/firestore";
+import { Timestamp } from "firebase-admin/firestore";
 import zApiService from "../services/ZApiService";
 import messageBuilderService from "../services/MessageBuilderService";
 import deduplicacaoService from "../services/DeduplicacaoService";
@@ -44,8 +44,25 @@ export const processarEnvio = onRequest(
       const envioData = envioDoc.data()!;
 
       // Já foi processado? (idempotência)
-      if (envioData.status === "enviado" || envioData.status === "erro") {
+      if (envioData.status === "enviado" || envioData.status === "erro" || envioData.status === "cancelado") {
         res.status(200).json({ status: "already_processed" });
+        return;
+      }
+
+      // Verificar se o lote foi cancelado
+      const loteDoc = await loteRef.get();
+      const loteData = loteDoc.data();
+      if (loteData?.status === "cancelado") {
+        await envioRef.update({ status: "cancelado" });
+        await verificarFinalizacao(loteRef);
+        logger.info("Envio pulado - lote cancelado", { tenantId, loteId, envioId });
+        res.status(200).json({ status: "cancelled" });
+        return;
+      }
+
+      // Verificar se este envio individual foi cancelado
+      if (envioData.status === "cancelado") {
+        res.status(200).json({ status: "cancelled" });
         return;
       }
 
@@ -88,12 +105,7 @@ export const processarEnvio = onRequest(
         enviadoEm: Timestamp.now(),
       });
 
-      // 7. Incrementar contador do lote
-      await loteRef.update({
-        enviados: FieldValue.increment(1),
-      });
-
-      // 8. Registrar imóveis como enviados (deduplicação)
+      // 7. Registrar imóveis como enviados (deduplicação)
       await deduplicacaoService.registrarEnviados(
         tenantId,
         envioData.telefone,
@@ -129,11 +141,6 @@ export const processarEnvio = onRequest(
         erro: errorMessage,
       });
 
-      // Incrementar contador de erros
-      await loteRef.update({
-        erros: FieldValue.increment(1),
-      });
-
       await verificarFinalizacao(loteRef);
 
       res.status(200).json({ status: "error", error: errorMessage });
@@ -151,7 +158,22 @@ async function verificarFinalizacao(
   const lote = loteDoc.data();
   if (!lote) return;
 
-  const processados = (lote.enviados || 0) + (lote.erros || 0);
+  // Contar todos os envios por status
+  const enviosSnapshot = await loteRef.collection("envios").get();
+  let enviados = 0;
+  let erros = 0;
+  let cancelados = 0;
+  for (const doc of enviosSnapshot.docs) {
+    const status = doc.data().status;
+    if (status === "enviado") enviados++;
+    else if (status === "erro") erros++;
+    else if (status === "cancelado") cancelados++;
+  }
+
+  // Atualizar contadores do lote
+  await loteRef.update({ enviados, erros });
+
+  const processados = enviados + erros + cancelados;
   if (processados >= lote.totalEnvios) {
     await loteRef.update({
       status: "finalizado",

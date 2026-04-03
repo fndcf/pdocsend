@@ -7,6 +7,7 @@ export interface Tenant {
   zapiToken: string;
   zapiClientToken: string;
   mensagemTemplate: MensagemTemplate;
+  limiteDiario: number;
   criadoEm: Timestamp;
 }
 

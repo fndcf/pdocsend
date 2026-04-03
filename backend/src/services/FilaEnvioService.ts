@@ -42,6 +42,8 @@ class FilaEnvioService {
       const scheduleTime = new Date();
       scheduleTime.setSeconds(scheduleTime.getSeconds() + delaySeconds);
 
+      const serviceAccountEmail = `${project}@appspot.gserviceaccount.com`;
+
       await client.createTask({
         parent,
         task: {
@@ -50,6 +52,10 @@ class FilaEnvioService {
             url: functionUrl,
             headers: { "Content-Type": "application/json" },
             body: Buffer.from(JSON.stringify(payload)).toString("base64"),
+            oidcToken: {
+              serviceAccountEmail,
+              audience: functionUrl,
+            },
           },
           scheduleTime: {
             seconds: Math.floor(scheduleTime.getTime() / 1000),

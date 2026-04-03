@@ -7,6 +7,7 @@ export interface AuthRequest extends Request {
     uid: string;
     email: string;
     tenantId: string;
+    role: string;
   };
   file?: {
     buffer: Buffer;
@@ -31,7 +32,7 @@ export async function requireAuth(
     const token = authHeader.split("Bearer ")[1];
     const decoded = await auth.verifyIdToken(token);
 
-    // Buscar tenant do usuário
+    // Buscar dados do usuário
     const userDoc = await db.collection("users").doc(decoded.uid).get();
     if (!userDoc.exists) {
       res.status(403).json({ success: false, error: "Usuário não cadastrado" });
@@ -39,7 +40,10 @@ export async function requireAuth(
     }
 
     const userData = userDoc.data();
-    if (!userData?.tenantId) {
+    const role = userData?.role || "admin";
+
+    // Superadmin pode acessar sem tenant
+    if (role !== "superadmin" && !userData?.tenantId) {
       res.status(403).json({ success: false, error: "Usuário sem tenant vinculado" });
       return;
     }
@@ -47,7 +51,8 @@ export async function requireAuth(
     (req as AuthRequest).user = {
       uid: decoded.uid,
       email: decoded.email || "",
-      tenantId: userData.tenantId,
+      tenantId: userData?.tenantId || "",
+      role,
     };
 
     next();

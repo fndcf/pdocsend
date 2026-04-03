@@ -1,0 +1,740 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import styled from "styled-components";
+import {
+  Users,
+  UserPlus,
+  Building2,
+  Activity,
+  AlertCircle,
+  Loader,
+  CheckCircle,
+  XCircle,
+  Clock,
+  X,
+  LogOut,
+  Settings,
+} from "lucide-react";
+import apiClient from "@/services/apiClient";
+import { useAuth } from "@/contexts/AuthContext";
+
+interface Cliente {
+  id: string;
+  nome: string;
+  mensagemTemplate: { nomeCorretor: string; nomeEmpresa: string; cargo: string };
+  zapiInstanceId: string;
+  limiteDiario: number;
+  usuarios: Array<{ uid: string; email: string; nome: string }>;
+  criadoEm: unknown;
+}
+
+interface Pendente {
+  uid: string;
+  email: string;
+  criadoEm: string;
+}
+
+interface MonitoramentoItem {
+  tenantId: string;
+  nome: string;
+  corretor: string;
+  totalEnviados: number;
+  totalErros: number;
+  lotesRecentes: Array<{
+    id: string;
+    pdfOrigem: string;
+    totalEnvios: number;
+    enviados: number;
+    erros: number;
+    status: string;
+  }>;
+}
+
+type Tab = "clientes" | "pendentes" | "monitoramento";
+
+export function Admin() {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+  const [tab, setTab] = useState<Tab>("clientes");
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [pendentes, setPendentes] = useState<Pendente[]>([]);
+  const [monitoramento, setMonitoramento] = useState<MonitoramentoItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [showNovoCliente, setShowNovoCliente] = useState(false);
+  const [selectedPendente, setSelectedPendente] = useState<Pendente | null>(null);
+  const [formSuccess, setFormSuccess] = useState("");
+
+  // Form state
+  const [formNome, setFormNome] = useState("");
+  const [formCorretor, setFormCorretor] = useState("");
+  const [formEmpresa, setFormEmpresa] = useState("");
+  const [formCargo, setFormCargo] = useState("corretor");
+  const [formInstanceId, setFormInstanceId] = useState("");
+  const [formToken, setFormToken] = useState("");
+  const [formClientToken, setFormClientToken] = useState("");
+  const [formLimiteDiario, setFormLimiteDiario] = useState("200");
+  const [formLoading, setFormLoading] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  // Carregar contagem de pendentes ao abrir a página
+  useEffect(() => {
+    apiClient.get<Pendente[]>("/admin/pendentes").then(setPendentes).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [tab]);
+
+  const loadData = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      if (tab === "clientes") {
+        const data = await apiClient.get<Cliente[]>("/admin/clientes");
+        setClientes(data);
+      } else if (tab === "pendentes") {
+        const data = await apiClient.get<Pendente[]>("/admin/pendentes");
+        setPendentes(data);
+      } else {
+        const data = await apiClient.get<MonitoramentoItem[]>("/admin/monitoramento");
+        setMonitoramento(data);
+      }
+    } catch {
+      setError("Erro ao carregar dados");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCriarCliente = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPendente) return;
+
+    setFormLoading(true);
+    setFormError("");
+
+    try {
+      await apiClient.post("/admin/clientes", {
+        uid: selectedPendente.uid,
+        nome: formNome,
+        nomeCorretor: formCorretor,
+        nomeEmpresa: formEmpresa,
+        cargo: formCargo,
+        zapiInstanceId: formInstanceId,
+        zapiToken: formToken,
+        zapiClientToken: formClientToken,
+        limiteDiario: formLimiteDiario,
+      });
+
+      setFormSuccess(`Cliente ${formNome} configurado com sucesso!`);
+      setShowNovoCliente(false);
+      setSelectedPendente(null);
+      resetForm();
+      loadData();
+    } catch {
+      setFormError("Erro ao criar cliente");
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormNome("");
+    setFormCorretor("");
+    setFormEmpresa("");
+    setFormCargo("corretor");
+    setFormInstanceId("");
+    setFormToken("");
+    setFormClientToken("");
+    setFormLimiteDiario("200");
+    setFormError("");
+  };
+
+  const [showEditCliente, setShowEditCliente] = useState(false);
+  const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
+
+  const openNovoCliente = (pendente: Pendente) => {
+    setSelectedPendente(pendente);
+    setShowNovoCliente(true);
+    setFormSuccess("");
+    resetForm();
+  };
+
+  const openEditCliente = (cliente: Cliente) => {
+    setEditingCliente(cliente);
+    setFormNome(cliente.nome);
+    setFormCorretor(cliente.mensagemTemplate?.nomeCorretor || "");
+    setFormEmpresa(cliente.mensagemTemplate?.nomeEmpresa || "");
+    setFormCargo(cliente.mensagemTemplate?.cargo || "corretor");
+    setFormInstanceId("");
+    setFormToken("");
+    setFormClientToken("");
+    setFormLimiteDiario(String(cliente.limiteDiario || 200));
+    setFormError("");
+    setShowEditCliente(true);
+    setFormSuccess("");
+  };
+
+  const handleEditarCliente = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCliente) return;
+
+    setFormLoading(true);
+    setFormError("");
+
+    try {
+      const body: Record<string, string> = {};
+      if (formNome) body.nome = formNome;
+      if (formCorretor) body.nomeCorretor = formCorretor;
+      if (formEmpresa) body.nomeEmpresa = formEmpresa;
+      if (formCargo) body.cargo = formCargo;
+      if (formInstanceId) body.zapiInstanceId = formInstanceId;
+      if (formToken) body.zapiToken = formToken;
+      if (formClientToken) body.zapiClientToken = formClientToken;
+      if (formLimiteDiario) body.limiteDiario = formLimiteDiario;
+
+      await apiClient.put(`/admin/clientes/${editingCliente.id}`, body);
+
+      setFormSuccess(`Cliente ${formNome} atualizado com sucesso!`);
+      setShowEditCliente(false);
+      setEditingCliente(null);
+      loadData();
+    } catch {
+      setFormError("Erro ao atualizar cliente");
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  return (
+    <Container>
+      <Header>
+        <Logo>PDocSend</Logo>
+        <HeaderTitle>Painel Admin</HeaderTitle>
+        <LogoutButton onClick={logout}>
+          <LogOut size={16} />
+          Sair
+        </LogoutButton>
+      </Header>
+
+      <Tabs>
+        <TabButton $active={tab === "clientes"} onClick={() => setTab("clientes")}>
+          <Building2 size={16} />
+          Clientes
+        </TabButton>
+        <TabButton $active={tab === "pendentes"} onClick={() => setTab("pendentes")}>
+          <UserPlus size={16} />
+          Pendentes
+          {pendentes.length > 0 && <Badge>{pendentes.length}</Badge>}
+        </TabButton>
+        <TabButton $active={tab === "monitoramento"} onClick={() => setTab("monitoramento")}>
+          <Activity size={16} />
+          Monitoramento
+        </TabButton>
+      </Tabs>
+
+      <Content>
+        {formSuccess && (
+          <SuccessBox>
+            <CheckCircle size={16} />
+            {formSuccess}
+          </SuccessBox>
+        )}
+
+        {error && (
+          <ErrorBox>
+            <AlertCircle size={16} />
+            {error}
+          </ErrorBox>
+        )}
+
+        {loading ? (
+          <LoadingState>
+            <Loader size={32} className="spin" />
+          </LoadingState>
+        ) : (
+          <>
+            {/* TAB: CLIENTES */}
+            {tab === "clientes" && (
+              <Section>
+                {clientes.length === 0 ? (
+                  <EmptyState>Nenhum cliente cadastrado.</EmptyState>
+                ) : (
+                  clientes.map((cliente) => (
+                    <Card key={cliente.id} $clickable onClick={() => openEditCliente(cliente)}>
+                      <CardHeader>
+                        <CardTitle>{cliente.nome}</CardTitle>
+                        <CardActions>
+                          <CardBadge>{cliente.zapiInstanceId ? "Z-API ativo" : "Sem Z-API"}</CardBadge>
+                          <EditButton title="Editar">
+                            <Settings size={14} />
+                          </EditButton>
+                        </CardActions>
+                      </CardHeader>
+                      <CardDetail>
+                        <Users size={14} />
+                        {cliente.usuarios.map((u) => u.email).join(", ") || "Sem usuários"}
+                      </CardDetail>
+                      <CardDetail>
+                        Corretor: {cliente.mensagemTemplate?.nomeCorretor} | Empresa: {cliente.mensagemTemplate?.nomeEmpresa} | Limite: {cliente.limiteDiario}/dia
+                      </CardDetail>
+                    </Card>
+                  ))
+                )}
+              </Section>
+            )}
+
+            {/* TAB: PENDENTES */}
+            {tab === "pendentes" && (
+              <Section>
+                {pendentes.length === 0 ? (
+                  <EmptyState>Nenhum usuário pendente.</EmptyState>
+                ) : (
+                  pendentes.map((pendente) => (
+                    <Card key={pendente.uid}>
+                      <CardHeader>
+                        <CardTitle>{pendente.email}</CardTitle>
+                        <ConfigButton onClick={() => openNovoCliente(pendente)}>
+                          <UserPlus size={14} />
+                          Configurar
+                        </ConfigButton>
+                      </CardHeader>
+                      <CardDetail>
+                        <Clock size={14} />
+                        Registrado em {pendente.criadoEm ? new Date(pendente.criadoEm).toLocaleDateString("pt-BR") : "-"}
+                      </CardDetail>
+                    </Card>
+                  ))
+                )}
+              </Section>
+            )}
+
+            {/* TAB: MONITORAMENTO */}
+            {tab === "monitoramento" && (
+              <Section>
+                {monitoramento.length === 0 ? (
+                  <EmptyState>Nenhum dado de monitoramento.</EmptyState>
+                ) : (
+                  monitoramento.map((item) => (
+                    <Card key={item.tenantId}>
+                      <CardHeader>
+                        <CardTitle>{item.nome} <CardSubtitle>({item.corretor})</CardSubtitle></CardTitle>
+                        <MonitorStats>
+                          <MonitorStat $color="green">{item.totalEnviados} enviados</MonitorStat>
+                          {item.totalErros > 0 && (
+                            <MonitorStat $color="red">{item.totalErros} erros</MonitorStat>
+                          )}
+                        </MonitorStats>
+                      </CardHeader>
+                      {item.lotesRecentes.map((lote) => (
+                        <LoteItem key={lote.id} onClick={() => navigate(`/envio/${lote.id}?tenant=${item.tenantId}`)}>
+                          <LoteIcon>
+                            {lote.status === "finalizado" && <CheckCircle size={14} color="#16a34a" />}
+                            {lote.status === "em_andamento" && <Loader size={14} color="#f59e0b" />}
+                            {lote.status === "cancelado" && <XCircle size={14} color="#dc2626" />}
+                          </LoteIcon>
+                          <LoteInfo>
+                            <span>{lote.pdfOrigem}</span>
+                            <LoteStats>{lote.enviados}/{lote.totalEnvios} enviados</LoteStats>
+                          </LoteInfo>
+                        </LoteItem>
+                      ))}
+                    </Card>
+                  ))
+                )}
+              </Section>
+            )}
+          </>
+        )}
+      </Content>
+
+      {/* MODAL: NOVO CLIENTE */}
+      {showNovoCliente && selectedPendente && (
+        <ModalOverlay onClick={() => setShowNovoCliente(false)}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>Configurar novo cliente</ModalTitle>
+              <CloseButton onClick={() => setShowNovoCliente(false)}>
+                <X size={20} />
+              </CloseButton>
+            </ModalHeader>
+            <ModalSubtitle>Usuário: {selectedPendente.email}</ModalSubtitle>
+
+            <Form onSubmit={handleCriarCliente}>
+              <FormGroup>
+                <Label>Nome da empresa</Label>
+                <Input value={formNome} onChange={(e) => setFormNome(e.target.value)} required />
+              </FormGroup>
+              <FormRow>
+                <FormGroup>
+                  <Label>Nome do corretor</Label>
+                  <Input value={formCorretor} onChange={(e) => setFormCorretor(e.target.value)} required />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Cargo</Label>
+                  <Input value={formCargo} onChange={(e) => setFormCargo(e.target.value)} />
+                </FormGroup>
+              </FormRow>
+              <FormGroup>
+                <Label>Nome da empresa (na mensagem)</Label>
+                <Input value={formEmpresa} onChange={(e) => setFormEmpresa(e.target.value)} required />
+              </FormGroup>
+              <FormGroup>
+                <Label>Z-API Instance ID</Label>
+                <Input value={formInstanceId} onChange={(e) => setFormInstanceId(e.target.value)} required />
+              </FormGroup>
+              <FormRow>
+                <FormGroup>
+                  <Label>Z-API Token</Label>
+                  <Input value={formToken} onChange={(e) => setFormToken(e.target.value)} required />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Z-API Client Token</Label>
+                  <Input value={formClientToken} onChange={(e) => setFormClientToken(e.target.value)} required />
+                </FormGroup>
+              </FormRow>
+              <FormGroup>
+                <Label>Limite diário de mensagens</Label>
+                <Input type="number" value={formLimiteDiario} onChange={(e) => setFormLimiteDiario(e.target.value)} min="1" max="1000" />
+              </FormGroup>
+
+              {formError && (
+                <ErrorBox>
+                  <AlertCircle size={16} />
+                  {formError}
+                </ErrorBox>
+              )}
+
+              <SubmitButton type="submit" disabled={formLoading}>
+                {formLoading ? "Configurando..." : "Configurar cliente"}
+              </SubmitButton>
+            </Form>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
+      {/* MODAL: EDITAR CLIENTE */}
+      {showEditCliente && editingCliente && (
+        <ModalOverlay onClick={() => setShowEditCliente(false)}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>Editar cliente</ModalTitle>
+              <CloseButton onClick={() => setShowEditCliente(false)}>
+                <X size={20} />
+              </CloseButton>
+            </ModalHeader>
+            <ModalSubtitle>{editingCliente.nome}</ModalSubtitle>
+
+            <Form onSubmit={handleEditarCliente}>
+              <FormGroup>
+                <Label>Nome da empresa</Label>
+                <Input value={formNome} onChange={(e) => setFormNome(e.target.value)} />
+              </FormGroup>
+              <FormRow>
+                <FormGroup>
+                  <Label>Nome do corretor</Label>
+                  <Input value={formCorretor} onChange={(e) => setFormCorretor(e.target.value)} />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Cargo</Label>
+                  <Input value={formCargo} onChange={(e) => setFormCargo(e.target.value)} />
+                </FormGroup>
+              </FormRow>
+              <FormGroup>
+                <Label>Nome da empresa (na mensagem)</Label>
+                <Input value={formEmpresa} onChange={(e) => setFormEmpresa(e.target.value)} />
+              </FormGroup>
+              <FormGroup>
+                <Label>Z-API Instance ID (deixe vazio para manter)</Label>
+                <Input value={formInstanceId} onChange={(e) => setFormInstanceId(e.target.value)} placeholder="Manter atual" />
+              </FormGroup>
+              <FormRow>
+                <FormGroup>
+                  <Label>Z-API Token (deixe vazio para manter)</Label>
+                  <Input value={formToken} onChange={(e) => setFormToken(e.target.value)} placeholder="Manter atual" />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Z-API Client Token (deixe vazio para manter)</Label>
+                  <Input value={formClientToken} onChange={(e) => setFormClientToken(e.target.value)} placeholder="Manter atual" />
+                </FormGroup>
+              </FormRow>
+              <FormGroup>
+                <Label>Limite diário de mensagens</Label>
+                <Input type="number" value={formLimiteDiario} onChange={(e) => setFormLimiteDiario(e.target.value)} min="1" max="1000" />
+              </FormGroup>
+
+              {formError && (
+                <ErrorBox>
+                  <AlertCircle size={16} />
+                  {formError}
+                </ErrorBox>
+              )}
+
+              <SubmitButton type="submit" disabled={formLoading}>
+                {formLoading ? "Salvando..." : "Salvar alterações"}
+              </SubmitButton>
+            </Form>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+    </Container>
+  );
+}
+
+const Container = styled.div`
+  min-height: 100vh;
+  background: ${({ theme }) => theme.colors.background};
+
+  .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+`;
+
+const Header = styled.header`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: ${({ theme }) => theme.colors.surface};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  @media (min-width: 640px) { gap: 1rem; padding: 1rem 2rem; }
+`;
+
+const Logo = styled.h1`
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+
+const HeaderTitle = styled.h1`
+  font-size: ${({ theme }) => theme.fontSize.lg};
+  font-weight: 700;
+  flex: 1;
+`;
+
+const LogoutButton = styled.button`
+  display: flex; align-items: center; gap: 0.375rem;
+  padding: 0.375rem 0.75rem; background: none;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.fontSize.xs}; font-weight: 500;
+  &:hover { background: ${({ theme }) => theme.colors.borderLight}; color: ${({ theme }) => theme.colors.text}; }
+`;
+
+const Tabs = styled.div`
+  display: flex; gap: 0;
+  background: ${({ theme }) => theme.colors.surface};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  padding: 0 1rem;
+  overflow-x: auto;
+  @media (min-width: 640px) { padding: 0 2rem; }
+`;
+
+const TabButton = styled.button<{ $active: boolean }>`
+  display: flex; align-items: center; gap: 0.375rem;
+  padding: 0.75rem 1rem;
+  background: none; border: none;
+  border-bottom: 2px solid ${(p) => p.$active ? p.theme.colors.primary : "transparent"};
+  color: ${(p) => p.$active ? p.theme.colors.primary : p.theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  font-weight: ${(p) => p.$active ? 600 : 400};
+  cursor: pointer; white-space: nowrap;
+  &:hover { color: ${({ theme }) => theme.colors.primary}; }
+`;
+
+const Badge = styled.span`
+  background: ${({ theme }) => theme.colors.error};
+  color: white; font-size: 0.625rem; font-weight: 700;
+  padding: 0.125rem 0.375rem; border-radius: 999px;
+`;
+
+const Content = styled.main`
+  max-width: 800px; margin: 1rem auto; padding: 0 1rem;
+  @media (min-width: 640px) { margin: 2rem auto; padding: 0 2rem; }
+`;
+
+const Section = styled.div`
+  display: flex; flex-direction: column; gap: 0.5rem;
+`;
+
+const LoadingState = styled.div`
+  display: flex; justify-content: center; padding: 3rem;
+`;
+
+const EmptyState = styled.div`
+  text-align: center; padding: 3rem; color: ${({ theme }) => theme.colors.textSecondary};
+`;
+
+const SuccessBox = styled.div`
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.75rem; margin-bottom: 1rem;
+  background: #f0fdf4; border: 1px solid #bbf7d0;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  color: #16a34a; font-size: ${({ theme }) => theme.fontSize.sm};
+`;
+
+const ErrorBox = styled.div`
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.75rem; margin-bottom: 1rem;
+  background: #fef2f2; border: 1px solid #fecaca;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  color: #991b1b; font-size: ${({ theme }) => theme.fontSize.sm};
+`;
+
+const Card = styled.div<{ $clickable?: boolean }>`
+  padding: 1rem; background: ${({ theme }) => theme.colors.surface};
+  border-radius: ${({ theme }) => theme.borderRadius.lg};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  cursor: ${(p) => p.$clickable ? "pointer" : "default"};
+  transition: box-shadow 0.2s;
+  ${(p) => p.$clickable && `&:hover { box-shadow: ${p.theme.shadows.md}; }`}
+`;
+
+const CardHeader = styled.div`
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 0.5rem;
+`;
+
+const CardTitle = styled.h3`
+  font-size: ${({ theme }) => theme.fontSize.md}; font-weight: 600;
+`;
+
+const CardSubtitle = styled.span`
+  font-weight: 400;
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  color: ${({ theme }) => theme.colors.textSecondary};
+`;
+
+const CardActions = styled.div`
+  display: flex; align-items: center; gap: 0.5rem;
+`;
+
+const CardBadge = styled.span`
+  font-size: ${({ theme }) => theme.fontSize.xs}; font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  background: #f0fdf4; color: #16a34a;
+`;
+
+const EditButton = styled.button`
+  display: flex; align-items: center; padding: 0.25rem;
+  background: none; border: none;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  cursor: pointer; border-radius: ${({ theme }) => theme.borderRadius.sm};
+  &:hover { color: ${({ theme }) => theme.colors.primary}; background: ${({ theme }) => theme.colors.borderLight}; }
+`;
+
+const CardDetail = styled.div`
+  display: flex; align-items: center; gap: 0.375rem;
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  margin-top: 0.25rem;
+`;
+
+const ConfigButton = styled.button`
+  display: flex; align-items: center; gap: 0.375rem;
+  padding: 0.375rem 0.75rem; background: ${({ theme }) => theme.colors.primary};
+  color: white; border: none;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  font-size: ${({ theme }) => theme.fontSize.xs}; font-weight: 600;
+  cursor: pointer;
+  &:hover { background: ${({ theme }) => theme.colors.primaryHover}; }
+`;
+
+const MonitorStats = styled.div`
+  display: flex; gap: 0.5rem;
+`;
+
+const MonitorStat = styled.span<{ $color: string }>`
+  font-size: ${({ theme }) => theme.fontSize.xs}; font-weight: 600;
+  color: ${(p) => p.$color === "green" ? "#16a34a" : "#dc2626"};
+`;
+
+const LoteItem = styled.div`
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 0; border-top: 1px solid ${({ theme }) => theme.colors.borderLight};
+  cursor: pointer;
+  &:hover { opacity: 0.8; }
+`;
+
+const LoteIcon = styled.div`
+  flex-shrink: 0;
+`;
+
+const LoteInfo = styled.div`
+  flex: 1; font-size: ${({ theme }) => theme.fontSize.sm};
+`;
+
+const LoteStats = styled.span`
+  margin-left: 0.5rem; color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.fontSize.xs};
+`;
+
+// Modal
+const ModalOverlay = styled.div`
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; padding: 1rem;
+`;
+
+const ModalContent = styled.div`
+  background: white; border-radius: ${({ theme }) => theme.borderRadius.xl};
+  padding: 1.5rem; width: 100%; max-width: 520px;
+  max-height: 90vh; overflow-y: auto;
+`;
+
+const ModalHeader = styled.div`
+  display: flex; justify-content: space-between; align-items: center;
+`;
+
+const ModalTitle = styled.h2`
+  font-size: ${({ theme }) => theme.fontSize.lg}; font-weight: 700;
+`;
+
+const ModalSubtitle = styled.p`
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  margin-bottom: 1.25rem;
+`;
+
+const CloseButton = styled.button`
+  background: none; border: none; color: ${({ theme }) => theme.colors.textSecondary};
+  cursor: pointer; padding: 0.25rem;
+`;
+
+const Form = styled.form`
+  display: flex; flex-direction: column; gap: 1rem;
+`;
+
+const FormGroup = styled.div`
+  display: flex; flex-direction: column; gap: 0.25rem; flex: 1;
+`;
+
+const FormRow = styled.div`
+  display: flex; gap: 0.75rem;
+  @media (max-width: 480px) { flex-direction: column; }
+`;
+
+const Label = styled.label`
+  font-size: ${({ theme }) => theme.fontSize.sm}; font-weight: 600;
+`;
+
+const Input = styled.input`
+  padding: 0.5rem 0.75rem;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  outline: none;
+  &:focus { border-color: ${({ theme }) => theme.colors.primary}; }
+`;
+
+const SubmitButton = styled.button`
+  padding: 0.75rem; background: ${({ theme }) => theme.colors.primary};
+  color: white; border: none;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  font-size: ${({ theme }) => theme.fontSize.md}; font-weight: 600;
+  cursor: pointer; margin-top: 0.5rem;
+  &:hover:not(:disabled) { background: ${({ theme }) => theme.colors.primaryHover}; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;

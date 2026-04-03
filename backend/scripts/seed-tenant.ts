@@ -95,6 +95,7 @@ async function main() {
       nomeEmpresa: args.empresa,
       cargo: args.cargo,
     },
+    limiteDiario: 200,
     criadoEm: agora,
   });
 

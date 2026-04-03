@@ -19,4 +19,19 @@ router.get("/lotes/:id", requireAuth, (req, res) =>
   envioController.detalhesLote(req as AuthRequest, res)
 );
 
+// POST /api/envios/lotes/:id/cancelar - Cancelar lote inteiro
+router.post("/lotes/:id/cancelar", requireAuth, (req, res) =>
+  envioController.cancelarLote(req as AuthRequest, res)
+);
+
+// POST /api/envios/lotes/:id/envios/:envioId/cancelar - Cancelar envio individual
+router.post("/lotes/:id/envios/:envioId/cancelar", requireAuth, (req, res) =>
+  envioController.cancelarEnvio(req as AuthRequest, res)
+);
+
+// GET /api/envios/contato/:telefone - Histórico de envios por telefone
+router.get("/contato/:telefone", requireAuth, (req, res) =>
+  envioController.historicoPorContato(req as AuthRequest, res)
+);
+
 export default router;

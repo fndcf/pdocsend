@@ -6,3 +6,5 @@ lib/
 .env.production
 coverage/
 *.js.map
+serviceAccount.json
+*-firebase-adminsdk-*.json

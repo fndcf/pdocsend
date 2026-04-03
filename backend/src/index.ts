@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { onRequest } from "firebase-functions/v2/https";
-import { beforeUserCreated } from "firebase-functions/v2/identity";
 import routes from "./routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import logger from "./utils/logger";
@@ -65,26 +64,11 @@ export const api = onRequest(
   app
 );
 
-// Desativar usuário recém-criado (auto-registro com aprovação manual)
-export const beforeCreate = beforeUserCreated(async (event) => {
-  const { auth: adminAuth } = await import("./config/firebase");
-  const user = event.data;
-  if (!user) return;
-
-  logger.info("Novo usuário registrado, desativando conta", {
-    uid: user.uid,
-    email: user.email || "",
-  });
-
-  // Desativa o usuário para aprovação manual
-  await adminAuth.updateUser(user.uid, { disabled: true });
-});
-
 // Cloud Function para processamento de envio individual (acionada pelo Cloud Tasks)
 export { processarEnvio } from "./functions/processarEnvio";
 
-// Servidor local (desenvolvimento)
-if (process.env.NODE_ENV !== "production" && !process.env.K_SERVICE) {
+// Servidor local (apenas quando rodado via ts-node-dev)
+if (process.env.LOCAL_DEV === "true") {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
     logger.info(`Servidor rodando na porta ${PORT}`);

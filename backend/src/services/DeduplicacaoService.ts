@@ -3,6 +3,7 @@
  */
 
 import { db } from "../config/firebase";
+import { Timestamp } from "firebase-admin/firestore";
 import { Contato, Imovel } from "../models/Imovel";
 import { ContatoComStatus } from "../models/Imovel";
 import { gerarHashImovel } from "../utils/textUtils";
@@ -134,7 +135,7 @@ class DeduplicacaoService {
     envioId: string
   ): Promise<void> {
     const batch = db.batch();
-    const agora = new Date();
+    const agora = Timestamp.now();
 
     for (const imovel of imoveis) {
       const hash = gerarHashImovel(

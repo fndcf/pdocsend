@@ -6,6 +6,8 @@ import { Upload } from "./pages/Upload";
 import { Revisao } from "./pages/Revisao";
 import { Envio } from "./pages/Envio";
 import { Historico } from "./pages/Historico";
+import { HistoricoContato } from "./pages/HistoricoContato";
+import { Admin } from "./pages/Admin";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -53,6 +55,22 @@ function App() {
         element={
           <PrivateRoute>
             <Historico />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/historico/contato"
+        element={
+          <PrivateRoute>
+            <HistoricoContato />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <PrivateRoute>
+            <Admin />
           </PrivateRoute>
         }
       />

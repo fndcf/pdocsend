@@ -8,6 +8,7 @@ import {
   XCircle,
   Loader,
   Clock,
+  Search,
 } from "lucide-react";
 import {
   collection,
@@ -64,6 +65,10 @@ export function Historico() {
           Voltar
         </BackButton>
         <HeaderTitle>Histórico de Envios</HeaderTitle>
+        <SearchContactButton onClick={() => navigate("/historico/contato")}>
+          <Search size={16} />
+          Buscar contato
+        </SearchContactButton>
       </Header>
 
       <TenantGuard loading={tenantLoading} error={tenantError}>
@@ -142,15 +147,49 @@ const Container = styled.div`
 const Header = styled.header`
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem 2rem;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
   background: ${({ theme }) => theme.colors.surface};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  @media (min-width: 640px) {
+    gap: 1rem;
+    padding: 1rem 2rem;
+  }
 `;
 
 const HeaderTitle = styled.h1`
-  font-size: ${({ theme }) => theme.fontSize.lg};
+  font-size: ${({ theme }) => theme.fontSize.md};
   font-weight: 700;
+  flex: 1;
+
+  @media (min-width: 640px) {
+    font-size: ${({ theme }) => theme.fontSize.lg};
+  }
+`;
+
+const SearchContactButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  background: none;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.fontSize.xs};
+  font-weight: 500;
+  flex-shrink: 0;
+
+  @media (min-width: 640px) {
+    padding: 0.5rem 0.75rem;
+    font-size: ${({ theme }) => theme.fontSize.sm};
+  }
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.borderLight};
+    color: ${({ theme }) => theme.colors.text};
+  }
 `;
 
 const BackButton = styled.button`
@@ -171,8 +210,13 @@ const BackButton = styled.button`
 
 const Content = styled.main`
   max-width: 800px;
-  margin: 2rem auto;
-  padding: 0 2rem;
+  margin: 1rem auto;
+  padding: 0 1rem;
+
+  @media (min-width: 640px) {
+    margin: 2rem auto;
+    padding: 0 2rem;
+  }
 `;
 
 const LoadingState = styled.div`
@@ -199,8 +243,9 @@ const EmptyState = styled.div`
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  padding: 4rem;
+  padding: 4rem 2rem;
   color: ${({ theme }) => theme.colors.textSecondary};
+  text-align: center;
 `;
 
 const LotesList = styled.div`

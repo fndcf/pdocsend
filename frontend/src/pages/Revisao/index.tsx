@@ -9,6 +9,10 @@ import {
   Clock,
   AlertCircle,
   Eye,
+  Pencil,
+  Check,
+  X,
+  History,
 } from "lucide-react";
 import apiClient from "@/services/apiClient";
 import { ContatoComStatus } from "@/types";
@@ -54,8 +58,40 @@ export function Revisao() {
   const novos = contatos.filter((c) => c.status === "novo");
   const jaEnviados = contatos.filter((c) => c.status === "ja_enviado");
 
+  const [confirmRemoveIndex, setConfirmRemoveIndex] = useState<number | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+
+  const handleStartEdit = (index: number, nome: string) => {
+    setEditingIndex(index);
+    setEditingName(nome);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingIndex !== null && editingName.trim()) {
+      setContatos((prev) =>
+        prev.map((c, i) =>
+          i === editingIndex ? { ...c, nome: editingName.trim() } : c
+        )
+      );
+      setEditingIndex(null);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setEditingName("");
+  };
+
   const handleRemover = (index: number) => {
-    setContatos((prev) => prev.filter((_, i) => i !== index));
+    setConfirmRemoveIndex(index);
+  };
+
+  const confirmarRemocao = () => {
+    if (confirmRemoveIndex !== null) {
+      setContatos((prev) => prev.filter((_, i) => i !== confirmRemoveIndex));
+      setConfirmRemoveIndex(null);
+    }
   };
 
   const handleConfirmarEnvio = async () => {
@@ -74,9 +110,14 @@ export function Revisao() {
       );
 
       navigate(`/envio/${resultado.loteId}`);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Erro ao confirmar envio";
+    } catch (err: unknown) {
+      let message = "Erro ao confirmar envio";
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      if (axiosErr.response?.data?.error) {
+        message = axiosErr.response.data.error;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
       setError(message);
     } finally {
       setLoading(false);
@@ -126,44 +167,101 @@ export function Revisao() {
             if (contato.status !== "novo") return null;
             return (
               <ContatoCard key={index}>
-                <ContatoInfo>
-                  <ContatoNome>{contato.nome}</ContatoNome>
-                  <ContatoTelefone>{contato.telefone}</ContatoTelefone>
-                  <ImoveisList>
-                    {contato.imoveis.map((im, j) => (
-                      <ImovelTag key={j}>
-                        <OperacaoTag $op={im.operacao}>
-                          {im.operacao === "venda"
-                            ? "V"
-                            : im.operacao === "locacao"
-                              ? "L"
-                              : "V+L"}
-                        </OperacaoTag>
-                        {im.edificio || `${im.endereco}, ${im.numero}`}
-                        {im.apartamento ? ` Apt ${im.apartamento}` : ""}
-                      </ImovelTag>
-                    ))}
-                  </ImoveisList>
-                </ContatoInfo>
-                <ContatoActions>
-                  <ActionButton
-                    onClick={() =>
-                      setPreviewIndex(previewIndex === index ? null : index)
-                    }
-                    title="Ver mensagem"
-                  >
-                    <Eye size={16} />
-                  </ActionButton>
-                  <ActionButton
-                    onClick={() => handleRemover(index)}
-                    $danger
-                    title="Remover"
-                  >
-                    <Trash2 size={16} />
-                  </ActionButton>
-                </ContatoActions>
+                <CardHeader>
+                  <CardLeft>
+                    {editingIndex === index ? (
+                      <EditNameRow>
+                        <EditNameInput
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveEdit();
+                            if (e.key === "Escape") handleCancelEdit();
+                          }}
+                          autoFocus
+                        />
+                        <EditNameButton onClick={handleSaveEdit} title="Salvar">
+                          <Check size={14} />
+                        </EditNameButton>
+                        <EditNameButton onClick={handleCancelEdit} title="Cancelar" $cancel>
+                          <X size={14} />
+                        </EditNameButton>
+                      </EditNameRow>
+                    ) : (
+                      <ContatoNomeRow>
+                        <ContatoNome>{contato.nome}</ContatoNome>
+                        <EditNameButton
+                          onClick={() => handleStartEdit(index, contato.nome)}
+                          title="Editar nome"
+                        >
+                          <Pencil size={12} />
+                        </EditNameButton>
+                      </ContatoNomeRow>
+                    )}
+                    <TelefoneRow>
+                      <ContatoTelefone>{contato.telefone}</ContatoTelefone>
+                      <HistoricoLink
+                        onClick={() =>
+                          navigate(`/historico/contato?telefone=${contato.telefone}`)
+                        }
+                        title="Ver histórico deste contato"
+                      >
+                        <History size={12} />
+                      </HistoricoLink>
+                    </TelefoneRow>
+                  </CardLeft>
+                  {editingIndex !== index && (
+                    <ContatoActions>
+                      <ActionButton
+                        onClick={() =>
+                          setPreviewIndex(previewIndex === index ? null : index)
+                        }
+                        title="Ver mensagem"
+                      >
+                        <Eye size={16} />
+                      </ActionButton>
+                      <ActionButton
+                        onClick={() => handleRemover(index)}
+                        $danger
+                        title="Remover"
+                      >
+                        <Trash2 size={16} />
+                      </ActionButton>
+                    </ContatoActions>
+                  )}
+                </CardHeader>
+                <ImoveisList>
+                  {contato.imoveis.map((im, j) => (
+                    <ImovelTag key={j}>
+                      <OperacaoTag $op={im.operacao}>
+                        {im.operacao === "venda"
+                          ? "V"
+                          : im.operacao === "locacao"
+                            ? "L"
+                            : "V+L"}
+                      </OperacaoTag>
+                      {im.edificio || `${im.endereco}, ${im.numero}`}
+                      {im.apartamento ? ` Apt ${im.apartamento}` : ""}
+                    </ImovelTag>
+                  ))}
+                </ImoveisList>
                 {previewIndex === index && contato.mensagemPreview && (
-                  <PreviewBox>{contato.mensagemPreview}</PreviewBox>
+                  <PreviewBox>
+                    <PreviewTextarea
+                      value={contato.mensagemPreview}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        setContatos((prev) =>
+                          prev.map((c, i) =>
+                            i === index
+                              ? { ...c, mensagemPreview: newValue }
+                              : c
+                          )
+                        );
+                      }}
+                      rows={6}
+                    />
+                  </PreviewBox>
                 )}
               </ContatoCard>
             );
@@ -181,10 +279,12 @@ export function Revisao() {
             if (contato.status !== "ja_enviado") return null;
             return (
               <ContatoCard key={index} $disabled>
-                <ContatoInfo>
-                  <ContatoNome>{contato.nome}</ContatoNome>
-                  <ContatoTelefone>{contato.telefone}</ContatoTelefone>
-                </ContatoInfo>
+                <CardHeader>
+                  <CardLeft>
+                    <ContatoNome>{contato.nome}</ContatoNome>
+                    <ContatoTelefone>{contato.telefone}</ContatoTelefone>
+                  </CardLeft>
+                </CardHeader>
               </ContatoCard>
             );
           })}
@@ -209,6 +309,28 @@ export function Revisao() {
             : `Confirmar envio de ${novos.length} mensagem(ns)`}
         </ConfirmButton>
       </Footer>
+
+      {confirmRemoveIndex !== null && (
+        <ModalOverlay onClick={() => setConfirmRemoveIndex(null)}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <ModalTitle>Remover contato</ModalTitle>
+            <ModalText>
+              Tem certeza que deseja remover{" "}
+              <strong>{contatos[confirmRemoveIndex]?.nome}</strong> da lista de
+              envio?
+            </ModalText>
+            <ModalActions>
+              <ModalCancelButton onClick={() => setConfirmRemoveIndex(null)}>
+                Cancelar
+              </ModalCancelButton>
+              <ModalConfirmButton onClick={confirmarRemocao}>
+                <Trash2 size={16} />
+                Remover
+              </ModalConfirmButton>
+            </ModalActions>
+          </ModalContent>
+        </ModalOverlay>
+      )}
     </Container>
   );
 }
@@ -222,28 +344,46 @@ const Container = styled.div`
 const Header = styled.header`
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem 2rem;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
   background: ${({ theme }) => theme.colors.surface};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  @media (min-width: 640px) {
+    gap: 1rem;
+    padding: 1rem 2rem;
+  }
 `;
 
 const HeaderTitle = styled.h1`
-  font-size: ${({ theme }) => theme.fontSize.lg};
+  font-size: ${({ theme }) => theme.fontSize.md};
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  @media (min-width: 640px) {
+    font-size: ${({ theme }) => theme.fontSize.lg};
+  }
 `;
 
 const BackButton = styled.button`
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.375rem 0.5rem;
   background: none;
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.borderRadius.md};
   color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => theme.fontSize.sm};
+  font-size: ${({ theme }) => theme.fontSize.xs};
   font-weight: 500;
+  flex-shrink: 0;
+
+  @media (min-width: 640px) {
+    padding: 0.5rem 0.75rem;
+    font-size: ${({ theme }) => theme.fontSize.sm};
+  }
 
   &:hover {
     background: ${({ theme }) => theme.colors.borderLight};
@@ -260,25 +400,39 @@ const EmptyState = styled.div`
 `;
 
 const Resumo = styled.div`
-  display: flex;
-  gap: 1.5rem;
-  padding: 1.5rem 2rem;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  padding: 1rem;
   max-width: 800px;
   margin: 0 auto;
+
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1rem;
+    padding: 1.5rem 2rem;
+  }
 `;
 
 const ResumoItem = styled.div`
-  flex: 1;
   text-align: center;
-  padding: 1rem;
+  padding: 0.75rem 0.5rem;
   background: ${({ theme }) => theme.colors.surface};
   border-radius: ${({ theme }) => theme.borderRadius.lg};
   box-shadow: ${({ theme }) => theme.shadows.sm};
+
+  @media (min-width: 640px) {
+    padding: 1rem;
+  }
 `;
 
 const ResumoNumber = styled.div<{ $color?: string }>`
-  font-size: 1.75rem;
+  font-size: 1.25rem;
   font-weight: 800;
+
+  @media (min-width: 640px) {
+    font-size: 1.75rem;
+  }
   color: ${(p) =>
     p.$color === "green"
       ? "#16a34a"
@@ -288,15 +442,23 @@ const ResumoNumber = styled.div<{ $color?: string }>`
 `;
 
 const ResumoLabel = styled.div`
-  font-size: ${({ theme }) => theme.fontSize.sm};
+  font-size: ${({ theme }) => theme.fontSize.xs};
   color: ${({ theme }) => theme.colors.textSecondary};
   margin-top: 0.25rem;
+
+  @media (min-width: 640px) {
+    font-size: ${({ theme }) => theme.fontSize.sm};
+  }
 `;
 
 const Section = styled.section`
   max-width: 800px;
   margin: 0 auto;
-  padding: 0 2rem;
+  padding: 0 1rem;
+
+  @media (min-width: 640px) {
+    padding: 0 2rem;
+  }
 `;
 
 const SectionTitle = styled.h3`
@@ -309,24 +471,33 @@ const SectionTitle = styled.h3`
 `;
 
 const ContatoCard = styled.div<{ $disabled?: boolean }>`
-  display: flex;
-  flex-direction: column;
-  padding: 1rem;
+  padding: 0.75rem;
   margin-bottom: 0.5rem;
   background: ${({ theme }) => theme.colors.surface};
   border-radius: ${({ theme }) => theme.borderRadius.md};
   border: 1px solid ${({ theme }) => theme.colors.border};
   opacity: ${(p) => (p.$disabled ? 0.5 : 1)};
 
-  & > div:first-child {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+  @media (min-width: 640px) {
+    padding: 1rem;
   }
 `;
 
-const ContatoInfo = styled.div`
+const CardHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const CardLeft = styled.div`
   flex: 1;
+  min-width: 0;
+`;
+
+const ContatoNomeRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
 `;
 
 const ContatoNome = styled.div`
@@ -334,17 +505,74 @@ const ContatoNome = styled.div`
   font-size: ${({ theme }) => theme.fontSize.md};
 `;
 
+const EditNameRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+`;
+
+const EditNameInput = styled.input`
+  font-weight: 600;
+  font-size: ${({ theme }) => theme.fontSize.md};
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  padding: 0.125rem 0.375rem;
+  outline: none;
+  width: 200px;
+`;
+
+const EditNameButton = styled.button<{ $cancel?: boolean }>`
+  display: flex;
+  align-items: center;
+  padding: 0.25rem;
+  background: none;
+  border: none;
+  color: ${(p) => p.$cancel ? p.theme.colors.error : p.theme.colors.textSecondary};
+  cursor: pointer;
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.borderLight};
+    color: ${(p) => p.$cancel ? p.theme.colors.error : p.theme.colors.primary};
+  }
+`;
+
+const TelefoneRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.125rem;
+`;
+
 const ContatoTelefone = styled.div`
   font-size: ${({ theme }) => theme.fontSize.sm};
   color: ${({ theme }) => theme.colors.textSecondary};
-  margin-top: 0.125rem;
+`;
+
+const HistoricoLink = styled.button`
+  display: flex;
+  align-items: center;
+  padding: 0.125rem;
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  cursor: pointer;
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  opacity: 0.6;
+
+  &:hover {
+    opacity: 1;
+    color: ${({ theme }) => theme.colors.primary};
+  }
 `;
 
 const ImoveisList = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 0.375rem;
-  margin-top: 0.5rem;
+  margin-top: 0.625rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid ${({ theme }) => theme.colors.borderLight};
 `;
 
 const ImovelTag = styled.span`
@@ -399,9 +627,18 @@ const PreviewBox = styled.div`
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
   border-radius: ${({ theme }) => theme.borderRadius.md};
+`;
+
+const PreviewTextarea = styled.textarea`
+  width: 100%;
+  border: none;
+  background: transparent;
   font-size: ${({ theme }) => theme.fontSize.sm};
-  white-space: pre-line;
+  font-family: inherit;
   line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  color: ${({ theme }) => theme.colors.text};
 `;
 
 const ErrorBox = styled.div`
@@ -450,5 +687,77 @@ const ConfirmButton = styled.button`
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+`;
+
+const ModalContent = styled.div`
+  background: white;
+  border-radius: ${({ theme }) => theme.borderRadius.xl};
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: ${({ theme }) => theme.shadows.lg};
+`;
+
+const ModalTitle = styled.h3`
+  font-size: ${({ theme }) => theme.fontSize.lg};
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+`;
+
+const ModalText = styled.p`
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+`;
+
+const ModalCancelButton = styled.button`
+  padding: 0.5rem 1rem;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  background: white;
+  color: ${({ theme }) => theme.colors.text};
+  font-weight: 600;
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  cursor: pointer;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.borderLight};
+  }
+`;
+
+const ModalConfirmButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  background: ${({ theme }) => theme.colors.error};
+  color: white;
+  font-weight: 600;
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  cursor: pointer;
+
+  &:hover {
+    opacity: 0.9;
   }
 `;
