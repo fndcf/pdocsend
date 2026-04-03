@@ -6,8 +6,8 @@ import adminController from "../controllers/AdminController";
 const router = Router();
 
 // Todas as rotas admin requerem auth + superadmin
-router.use(requireAuth as any);
-router.use(requireSuperAdmin as any);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+router.use(requireAuth as any, requireSuperAdmin as any);
 
 // GET /api/admin/clientes - Listar clientes
 router.get("/clientes", (req, res) =>

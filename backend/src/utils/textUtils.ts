@@ -6,7 +6,7 @@
  */
 export function limparValor(valor: string): string {
   // Remove R$ duplicado
-  let limpo = valor.replace(/R\$R\$/g, "R$").trim();
+  const limpo = valor.replace(/R\$R\$/g, "R$").trim();
 
   // Se é R$0,00 considera vazio
   if (limpo === "R$0,00" || limpo === "R$ 0,00") {

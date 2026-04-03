@@ -43,7 +43,7 @@ export function normalizarTelefone(telefone: string): string {
 export function extrairNome(proprietario: string): string {
   const limpo = proprietario
     .replace(/\d/g, "")           // remove números
-    .replace(/[()\/\-]/g, "")     // remove (), /, -
+    .replace(/[()/-]/g, "")       // remove (), /, -
     .replace(/\s+/g, " ")
     .trim();
 
