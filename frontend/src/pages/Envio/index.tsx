@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import styled from "styled-components";
 import {
@@ -18,17 +17,9 @@ import {
   ProgressBar,
 } from "@/components/ui";
 import apiClient from "@/services/apiClient";
-import {
-  doc,
-  collection,
-  onSnapshot,
-  query,
-  orderBy,
-} from "firebase/firestore";
-import { db } from "@/config/firebase";
 import { useTenant } from "@/hooks/useTenant";
+import { useLoteProgress } from "@/hooks/useLoteProgress";
 import { TenantGuard } from "@/components/TenantGuard";
-import { Lote, EnvioItem } from "@/types";
 
 export function Envio() {
   const { loteId } = useParams<{ loteId: string }>();
@@ -37,47 +28,10 @@ export function Envio() {
   const { tenantId: userTenantId, loading: tenantLoading, error: tenantError, isSuperAdmin } = useTenant();
 
   // Superadmin pode ver lotes de qualquer tenant via query param
-  const tenantId = searchParams.get("tenant") || userTenantId;
+  const tenantId = searchParams.get("tenant") || userTenantId || "";
 
-  const [lote, setLote] = useState<Lote | null>(null);
-  const [loteNotFound, setLoteNotFound] = useState(false);
-  const [envios, setEnvios] = useState<EnvioItem[]>([]);
-
-  // Escutar lote em tempo real
-  useEffect(() => {
-    if (!tenantId || !loteId) return;
-
-    const loteRef = doc(db, `tenants/${tenantId}/lotes`, loteId);
-    const unsubscribe = onSnapshot(loteRef, (snap) => {
-      if (snap.exists()) {
-        setLote({ id: snap.id, ...snap.data() } as Lote);
-      } else {
-        setLoteNotFound(true);
-      }
-    });
-
-    return unsubscribe;
-  }, [tenantId, loteId]);
-
-  // Escutar envios em tempo real
-  useEffect(() => {
-    if (!tenantId || !loteId) return;
-
-    const enviosRef = collection(
-      db,
-      `tenants/${tenantId}/lotes/${loteId}/envios`
-    );
-    const q = query(enviosRef, orderBy("criadoEm", "asc"));
-
-    const unsubscribe = onSnapshot(q, (snap) => {
-      const items = snap.docs.map(
-        (d) => ({ id: d.id, ...d.data() }) as EnvioItem
-      );
-      setEnvios(items);
-    });
-
-    return unsubscribe;
-  }, [tenantId, loteId]);
+  const { lote, loteNotFound, envios, progresso, finalizado, cancelados, pendentes } =
+    useLoteProgress(tenantId, loteId);
 
   if (tenantLoading || (!lote && !loteNotFound)) {
     return (
@@ -103,17 +57,6 @@ export function Envio() {
       </Container>
     );
   }
-
-  const cancelados = envios.filter((e) => e.status === "cancelado").length;
-  const pendentes = envios.filter((e) => e.status === "pendente" || e.status === "enviando").length;
-  const processados = lote.enviados + lote.erros + cancelados;
-
-  const progresso =
-    lote.totalEnvios > 0
-      ? Math.round((processados / lote.totalEnvios) * 100)
-      : 0;
-
-  const finalizado = lote.status === "finalizado" || lote.status === "cancelado";
 
   return (
     <Container>

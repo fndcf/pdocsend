@@ -39,10 +39,19 @@ interface LocationState {
   pdfOrigem: string;
 }
 
+function getRevisaoState(locationState: unknown): LocationState | null {
+  if (locationState) return locationState as LocationState;
+  try {
+    const saved = sessionStorage.getItem("revisaoData");
+    if (saved) return JSON.parse(saved) as LocationState;
+  } catch { /* ignore */ }
+  return null;
+}
+
 export function Revisao() {
   const location = useLocation();
   const navigate = useNavigate();
-  const state = location.state as LocationState | null;
+  const state = getRevisaoState(location.state);
 
   const [contatos, setContatos] = useState<ContatoComStatus[]>(
     state?.contatos || []
@@ -116,6 +125,7 @@ export function Revisao() {
         }
       );
 
+      sessionStorage.removeItem("revisaoData");
       navigate(`/envio/${resultado.loteId}`);
     } catch (err: unknown) {
       let message = "Erro ao confirmar envio";

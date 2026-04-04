@@ -1,9 +1,11 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { Upload as UploadIcon, FileText, AlertCircle, LogOut, History, Send, Calendar, FileBarChart, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/hooks/useTenant";
+import { useDashboard } from "@/hooks/useDashboard";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { TenantGuard } from "@/components/TenantGuard";
 import apiClient from "@/services/apiClient";
 import { ContatoComStatus } from "@/types";
@@ -19,54 +21,14 @@ interface ProcessarResponse {
   pdfOrigem: string;
 }
 
-interface DashboardData {
-  enviadosHoje: number;
-  limiteDiario: number;
-  enviadosMes: number;
-  errosMes: number;
-  totalPdfs: number;
-  ultimoEnvio: unknown;
-}
-
 export function Upload() {
-  const [file, setFile] = useState<File | null>(null);
   const [filtroOperacao, setFiltroOperacao] = useState<"todos" | "venda" | "locacao">("todos");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { file, fileInputRef, error, setError, handleFileChange, handleDrop } = useFileUpload();
+  const dashboard = useDashboard();
   const { logout } = useAuth();
   const { loading: tenantLoading, error: tenantError, isSuperAdmin } = useTenant();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    apiClient.get<DashboardData>("/envios/dashboard").then(setDashboard).catch(() => {});
-  }, []);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      if (selectedFile.type !== "application/pdf") {
-        setError("Formato inválido. Envie um arquivo PDF.");
-        return;
-      }
-      setFile(selectedFile);
-      setError("");
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      if (droppedFile.type === "application/pdf") {
-        setFile(droppedFile);
-        setError("");
-      } else {
-        setError("Formato inválido. Envie um arquivo PDF.");
-      }
-    }
-  };
 
   const handleProcessar = async () => {
     if (!file) return;
@@ -81,7 +43,8 @@ export function Upload() {
         { filtroOperacao }
       );
 
-      // Navegar para revisão com os dados
+      // Persistir no sessionStorage para sobreviver ao refresh
+      sessionStorage.setItem("revisaoData", JSON.stringify(resultado));
       navigate("/revisao", {
         state: resultado,
       });

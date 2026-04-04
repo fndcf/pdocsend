@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import {
@@ -17,50 +17,13 @@ import {
 import { ErrorAlert, SuccessAlert, Modal as ModalUI } from "@/components/ui";
 import apiClient from "@/services/apiClient";
 import { useAuth } from "@/contexts/AuthContext";
-
-interface Cliente {
-  id: string;
-  nome: string;
-  mensagemTemplate: { nomeCorretor: string; nomeEmpresa: string; cargo: string };
-  zapiInstanceId: string;
-  limiteDiario: number;
-  usuarios: Array<{ uid: string; email: string; nome: string }>;
-  criadoEm: unknown;
-}
-
-interface Pendente {
-  uid: string;
-  email: string;
-  criadoEm: string;
-}
-
-interface MonitoramentoItem {
-  tenantId: string;
-  nome: string;
-  corretor: string;
-  totalEnviados: number;
-  totalErros: number;
-  lotesRecentes: Array<{
-    id: string;
-    pdfOrigem: string;
-    totalEnvios: number;
-    enviados: number;
-    erros: number;
-    status: string;
-  }>;
-}
-
-type Tab = "clientes" | "pendentes" | "monitoramento";
+import { useAdminData, type Cliente, type Pendente, type Tab } from "@/hooks/useAdminData";
 
 export function Admin() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [tab, setTab] = useState<Tab>("clientes");
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [pendentes, setPendentes] = useState<Pendente[]>([]);
-  const [monitoramento, setMonitoramento] = useState<MonitoramentoItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const { clientes, pendentes, monitoramento, loading, error, reload: loadData } = useAdminData(tab);
   const [showNovoCliente, setShowNovoCliente] = useState(false);
   const [selectedPendente, setSelectedPendente] = useState<Pendente | null>(null);
   const [formSuccess, setFormSuccess] = useState("");
@@ -76,36 +39,6 @@ export function Admin() {
   const [formLimiteDiario, setFormLimiteDiario] = useState("200");
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState("");
-
-  // Carregar contagem de pendentes ao abrir a página
-  useEffect(() => {
-    apiClient.get<Pendente[]>("/admin/pendentes").then(setPendentes).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [tab]);
-
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      if (tab === "clientes") {
-        const data = await apiClient.get<Cliente[]>("/admin/clientes");
-        setClientes(data);
-      } else if (tab === "pendentes") {
-        const data = await apiClient.get<Pendente[]>("/admin/pendentes");
-        setPendentes(data);
-      } else {
-        const data = await apiClient.get<MonitoramentoItem[]>("/admin/monitoramento");
-        setMonitoramento(data);
-      }
-    } catch {
-      setError("Erro ao carregar dados");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleCriarCliente = async (e: React.FormEvent) => {
     e.preventDefault();
