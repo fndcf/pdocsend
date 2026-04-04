@@ -12,11 +12,6 @@ import filaEnvioService from "../services/FilaEnvioService";
 import logger from "../utils/logger";
 import { ContatoComStatus } from "../models/Imovel";
 
-interface ConfirmarEnvioBody {
-  contatos: ContatoComStatus[];
-  pdfOrigem: string;
-}
-
 class EnvioController {
   /**
    * Confirma envio e cria lote + tasks no Cloud Tasks
@@ -25,7 +20,7 @@ class EnvioController {
   async confirmar(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { tenantId, uid } = req.user;
-      const { contatos, pdfOrigem } = req.body as ConfirmarEnvioBody;
+      const { contatos, pdfOrigem } = req.body as { contatos: ContatoComStatus[]; pdfOrigem: string };
 
       // Filtrar apenas contatos novos
       const contatosParaEnviar = contatos.filter((c) => c.status === "novo");

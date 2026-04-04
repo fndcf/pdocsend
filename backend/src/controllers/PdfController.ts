@@ -11,6 +11,7 @@ import deduplicacaoService from "../services/DeduplicacaoService";
 import messageBuilderService from "../services/MessageBuilderService";
 import { db } from "../config/firebase";
 import logger from "../utils/logger";
+import { processarPdfFormFieldsSchema } from "../schemas/pdfSchemas";
 
 class PdfController {
   /**
@@ -28,7 +29,7 @@ class PdfController {
       }
 
       const formFields = (req as unknown as Record<string, unknown>).formFields as Record<string, string> || {};
-      const filtroOperacao = formFields.filtroOperacao || "todos";
+      const { filtroOperacao } = processarPdfFormFieldsSchema.parse(formFields);
 
       logger.info("Processando PDF", {
         tenantId,

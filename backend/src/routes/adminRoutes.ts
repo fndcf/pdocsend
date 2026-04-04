@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { requireSuperAdmin } from "../middlewares/superadmin";
+import { validate } from "../middlewares/validate";
 import adminController from "../controllers/AdminController";
+import {
+  criarClienteSchema,
+  editarClienteSchema,
+  editarClienteParamsSchema,
+} from "../schemas/adminSchemas";
 
 const router = Router();
 
@@ -20,13 +26,17 @@ router.get("/pendentes", (req, res) =>
 );
 
 // POST /api/admin/clientes - Criar novo cliente
-router.post("/clientes", (req, res) =>
-  adminController.criarCliente(req as AuthRequest, res)
+router.post(
+  "/clientes",
+  validate({ body: criarClienteSchema }),
+  (req, res) => adminController.criarCliente(req as AuthRequest, res)
 );
 
 // PUT /api/admin/clientes/:id - Editar cliente
-router.put("/clientes/:id", (req, res) =>
-  adminController.editarCliente(req as unknown as AuthRequest, res)
+router.put(
+  "/clientes/:id",
+  validate({ body: editarClienteSchema, params: editarClienteParamsSchema }),
+  (req, res) => adminController.editarCliente(req as AuthRequest, res)
 );
 
 // GET /api/admin/monitoramento - Monitoramento geral

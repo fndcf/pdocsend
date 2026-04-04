@@ -104,12 +104,8 @@ class AdminController {
         zapiInstanceId,
         zapiToken,
         zapiClientToken,
+        limiteDiario,
       } = req.body;
-
-      if (!uid || !nome || !nomeCorretor || !nomeEmpresa || !zapiInstanceId || !zapiToken || !zapiClientToken) {
-        ResponseHelper.badRequest(res, "Todos os campos são obrigatórios");
-        return;
-      }
 
       // Verificar se usuário existe
       let userRecord;
@@ -119,8 +115,6 @@ class AdminController {
         ResponseHelper.notFound(res, "Usuário não encontrado");
         return;
       }
-
-      const limiteDiario = req.body.limiteDiario ? parseInt(req.body.limiteDiario) : 200;
 
       // Criar tenant
       const tenantRef = db.collection("tenants").doc();
@@ -186,7 +180,7 @@ class AdminController {
       if (zapiInstanceId) updateData.zapiInstanceId = zapiInstanceId;
       if (zapiToken) updateData.zapiToken = zapiToken;
       if (zapiClientToken) updateData.zapiClientToken = zapiClientToken;
-      if (limiteDiario) updateData.limiteDiario = parseInt(limiteDiario);
+      if (limiteDiario) updateData.limiteDiario = limiteDiario;
       if (nomeCorretor || nomeEmpresa || cargo) {
         const currentTemplate = tenantDoc.data()?.mensagemTemplate || {};
         updateData.mensagemTemplate = {
