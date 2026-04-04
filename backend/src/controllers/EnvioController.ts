@@ -396,6 +396,18 @@ class EnvioController {
     try {
       const { tenantId } = req.user;
 
+      if (!tenantId) {
+        ResponseHelper.success(res, {
+          enviadosHoje: 0,
+          limiteDiario: 0,
+          enviadosMes: 0,
+          errosMes: 0,
+          totalPdfs: 0,
+          ultimoEnvio: null,
+        });
+        return;
+      }
+
       // Buscar limite diário do tenant
       const tenantDoc = await db.collection("tenants").doc(tenantId).get();
       const limiteDiario = tenantDoc.data()?.limiteDiario || 200;
