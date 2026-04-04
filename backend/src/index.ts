@@ -60,7 +60,7 @@ app.use((req, res, next) => {
   }
 });
 
-// Health check
+// Health check (fora do /api para acesso direto ao Cloud Function)
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });

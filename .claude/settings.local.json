@@ -4,7 +4,9 @@
       "Bash(npx tsc:*)",
       "Bash(npx jest:*)",
       "Bash(npm ls:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(wc -l /c/Users/ferna/OneDrive/Documentos/projetos_react/imobi-whatsapp/docs/*.md)",
+      "Bash(xargs cat:*)"
     ]
   }
 }
