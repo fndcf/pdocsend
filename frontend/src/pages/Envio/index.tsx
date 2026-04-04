@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import styled from "styled-components";
 import {
-  ArrowLeft,
   CheckCircle,
   XCircle,
   Clock,
@@ -11,6 +10,13 @@ import {
   StopCircle,
   X,
 } from "lucide-react";
+import {
+  PageHeader,
+  BackButton,
+  LoadingState as LoadingStateUI,
+  StatusBadge,
+  ProgressBar,
+} from "@/components/ui";
 import apiClient from "@/services/apiClient";
 import {
   doc,
@@ -77,10 +83,10 @@ export function Envio() {
     return (
       <Container>
         <TenantGuard loading={tenantLoading} error={isSuperAdmin ? null : tenantError}>
-          <LoadingState>
+          <LoadingStateUI>
             <Loader size={32} className="spin" />
             <p>Carregando...</p>
-          </LoadingState>
+          </LoadingStateUI>
         </TenantGuard>
       </Container>
     );
@@ -89,20 +95,11 @@ export function Envio() {
   if (loteNotFound || !lote) {
     return (
       <Container>
-        <Header>
-          <BackButton onClick={() => navigate("/")}>
-            <ArrowLeft size={18} />
-            Voltar
-          </BackButton>
-          <HeaderTitle>Envio não encontrado</HeaderTitle>
-        </Header>
-        <LoadingState>
+        <PageHeader title="Envio não encontrado" onBack={() => navigate("/")} />
+        <LoadingStateUI>
           <p>Este lote de envio não foi encontrado ou já foi removido.</p>
-          <BackButton onClick={() => navigate("/")}>
-            <ArrowLeft size={18} />
-            Voltar ao início
-          </BackButton>
-        </LoadingState>
+          <BackButton onClick={() => navigate("/")}>Voltar ao início</BackButton>
+        </LoadingStateUI>
       </Container>
     );
   }
@@ -120,16 +117,10 @@ export function Envio() {
 
   return (
     <Container>
-      <Header>
-        <BackButton onClick={() => navigate("/")}>
-          <ArrowLeft size={18} />
-          Voltar
-        </BackButton>
-        <HeaderTitle>
-          <Send size={18} />
-          Envio - {lote.pdfOrigem}
-        </HeaderTitle>
-      </Header>
+      <PageHeader
+        title={<><Send size={18} /> Envio - {lote.pdfOrigem}</>}
+        onBack={() => navigate("/")}
+      />
 
       <Content>
         {/* Progresso */}
@@ -144,9 +135,7 @@ export function Envio() {
             )}
             <ProgressPercent>{progresso}%</ProgressPercent>
           </ProgressHeader>
-          <ProgressBarBg>
-            <ProgressBarFill $percent={progresso} $done={finalizado} />
-          </ProgressBarBg>
+          <ProgressBar percent={progresso} done={finalizado} />
           <ProgressStats>
             <Stat>
               <StatIcon $color="green">
@@ -221,13 +210,13 @@ export function Envio() {
                 {envio.erro && <EnvioErro>{envio.erro}</EnvioErro>}
               </EnvioInfo>
               <EnvioActions>
-                <EnvioStatus $status={envio.status}>
+                <StatusBadge $status={envio.status}>
                   {envio.status === "enviado" && "Enviado"}
                   {envio.status === "erro" && "Erro"}
                   {envio.status === "enviando" && "Enviando..."}
                   {envio.status === "pendente" && "Pendente"}
                   {envio.status === "cancelado" && "Cancelado"}
-                </EnvioStatus>
+                </StatusBadge>
                 {envio.status === "pendente" && (
                   <CancelEnvioButton
                     onClick={async () => {
@@ -259,71 +248,6 @@ const Container = styled.div`
   background: ${({ theme }) => theme.colors.background};
 `;
 
-const Header = styled.header`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: ${({ theme }) => theme.colors.surface};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-
-  @media (min-width: 640px) {
-    gap: 1rem;
-    padding: 1rem 2rem;
-  }
-`;
-
-const HeaderTitle = styled.h1`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-size: ${({ theme }) => theme.fontSize.md};
-  font-weight: 700;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-
-  @media (min-width: 640px) {
-    font-size: ${({ theme }) => theme.fontSize.lg};
-  }
-`;
-
-const BackButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.75rem;
-  background: none;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => theme.fontSize.sm};
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.borderLight};
-  }
-`;
-
-const LoadingState = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 4rem;
-  color: ${({ theme }) => theme.colors.textSecondary};
-
-  .spin {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`;
 
 const Content = styled.main`
   max-width: 800px;
@@ -362,20 +286,6 @@ const ProgressPercent = styled.span`
   color: ${({ theme }) => theme.colors.primary};
 `;
 
-const ProgressBarBg = styled.div`
-  height: 8px;
-  background: ${({ theme }) => theme.colors.borderLight};
-  border-radius: 4px;
-  overflow: hidden;
-`;
-
-const ProgressBarFill = styled.div<{ $percent: number; $done: boolean }>`
-  height: 100%;
-  width: ${(p) => p.$percent}%;
-  background: ${(p) => (p.$done ? "#16a34a" : p.theme.colors.primary)};
-  border-radius: 4px;
-  transition: width 0.5s ease;
-`;
 
 const ProgressStats = styled.div`
   display: flex;
@@ -487,28 +397,6 @@ const EnvioActions = styled.div`
   flex-shrink: 0;
 `;
 
-const EnvioStatus = styled.span<{ $status: string }>`
-  font-size: ${({ theme }) => theme.fontSize.xs};
-  font-weight: 600;
-  padding: 0.25rem 0.5rem;
-  border-radius: ${({ theme }) => theme.borderRadius.sm};
-  color: ${(p) =>
-    p.$status === "enviado"
-      ? "#16a34a"
-      : p.$status === "erro"
-        ? "#dc2626"
-        : p.$status === "enviando"
-          ? "#f59e0b"
-          : "#9ca3af"};
-  background: ${(p) =>
-    p.$status === "enviado"
-      ? "#f0fdf4"
-      : p.$status === "erro"
-        ? "#fef2f2"
-        : p.$status === "enviando"
-          ? "#fffbeb"
-          : "#f9fafb"};
-`;
 
 const CancelEnvioButton = styled.button`
   display: flex;

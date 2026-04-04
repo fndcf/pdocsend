@@ -2,12 +2,10 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import {
-  ArrowLeft,
   Send,
   Trash2,
   CheckCircle,
   Clock,
-  AlertCircle,
   Eye,
   Pencil,
   Check,
@@ -16,6 +14,18 @@ import {
 } from "lucide-react";
 import apiClient from "@/services/apiClient";
 import { ContatoComStatus } from "@/types";
+import {
+  ErrorAlert,
+  PageHeader,
+  BackButton,
+  Modal,
+  ModalTitle,
+  ModalText,
+  ModalActions,
+  ModalCancelButton,
+  ModalConfirmButton,
+  EmptyState,
+} from "@/components/ui";
 
 interface LocationState {
   contatos: ContatoComStatus[];
@@ -46,10 +56,7 @@ export function Revisao() {
       <Container>
         <EmptyState>
           <p>Nenhum dado para revisar. Faça upload de um PDF primeiro.</p>
-          <BackButton onClick={() => navigate("/")}>
-            <ArrowLeft size={18} />
-            Voltar
-          </BackButton>
+          <BackButton onClick={() => navigate("/")}>Voltar</BackButton>
         </EmptyState>
       </Container>
     );
@@ -126,13 +133,10 @@ export function Revisao() {
 
   return (
     <Container>
-      <Header>
-        <BackButton onClick={() => navigate("/")}>
-          <ArrowLeft size={18} />
-          Voltar
-        </BackButton>
-        <HeaderTitle>Revisão - {state.pdfOrigem}</HeaderTitle>
-      </Header>
+      <PageHeader
+        title={`Revisão - ${state.pdfOrigem}`}
+        onBack={() => navigate("/")}
+      />
 
       <Resumo>
         <ResumoItem>
@@ -291,12 +295,7 @@ export function Revisao() {
         </Section>
       )}
 
-      {error && (
-        <ErrorBox>
-          <AlertCircle size={16} />
-          {error}
-        </ErrorBox>
-      )}
+      {error && <StyledErrorAlert message={error} />}
 
       <Footer>
         <ConfirmButton
@@ -311,25 +310,23 @@ export function Revisao() {
       </Footer>
 
       {confirmRemoveIndex !== null && (
-        <ModalOverlay onClick={() => setConfirmRemoveIndex(null)}>
-          <ModalContent onClick={(e) => e.stopPropagation()}>
-            <ModalTitle>Remover contato</ModalTitle>
-            <ModalText>
-              Tem certeza que deseja remover{" "}
-              <strong>{contatos[confirmRemoveIndex]?.nome}</strong> da lista de
-              envio?
-            </ModalText>
-            <ModalActions>
-              <ModalCancelButton onClick={() => setConfirmRemoveIndex(null)}>
-                Cancelar
-              </ModalCancelButton>
-              <ModalConfirmButton onClick={confirmarRemocao}>
-                <Trash2 size={16} />
-                Remover
-              </ModalConfirmButton>
-            </ModalActions>
-          </ModalContent>
-        </ModalOverlay>
+        <Modal onClose={() => setConfirmRemoveIndex(null)}>
+          <ModalTitle>Remover contato</ModalTitle>
+          <ModalText>
+            Tem certeza que deseja remover{" "}
+            <strong>{contatos[confirmRemoveIndex]?.nome}</strong> da lista de
+            envio?
+          </ModalText>
+          <ModalActions>
+            <ModalCancelButton onClick={() => setConfirmRemoveIndex(null)}>
+              Cancelar
+            </ModalCancelButton>
+            <ModalConfirmButton onClick={confirmarRemocao}>
+              <Trash2 size={16} />
+              Remover
+            </ModalConfirmButton>
+          </ModalActions>
+        </Modal>
       )}
     </Container>
   );
@@ -341,64 +338,10 @@ const Container = styled.div`
   padding-bottom: 5rem;
 `;
 
-const Header = styled.header`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+const StyledErrorAlert = styled(ErrorAlert)`
+  max-width: 800px;
+  margin: 1rem auto;
   padding: 0.75rem 1rem;
-  background: ${({ theme }) => theme.colors.surface};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-
-  @media (min-width: 640px) {
-    gap: 1rem;
-    padding: 1rem 2rem;
-  }
-`;
-
-const HeaderTitle = styled.h1`
-  font-size: ${({ theme }) => theme.fontSize.md};
-  font-weight: 700;
-  flex: 1;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-
-  @media (min-width: 640px) {
-    font-size: ${({ theme }) => theme.fontSize.lg};
-  }
-`;
-
-const BackButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 0.5rem;
-  background: none;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => theme.fontSize.xs};
-  font-weight: 500;
-  flex-shrink: 0;
-
-  @media (min-width: 640px) {
-    padding: 0.5rem 0.75rem;
-    font-size: ${({ theme }) => theme.fontSize.sm};
-  }
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.borderLight};
-  }
-`;
-
-const EmptyState = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 4rem 2rem;
-  color: ${({ theme }) => theme.colors.textSecondary};
 `;
 
 const Resumo = styled.div`
@@ -643,19 +586,6 @@ const PreviewTextarea = styled.textarea`
   color: ${({ theme }) => theme.colors.text};
 `;
 
-const ErrorBox = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  max-width: 800px;
-  margin: 1rem auto;
-  padding: 0.75rem 1rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  color: #991b1b;
-  font-size: ${({ theme }) => theme.fontSize.sm};
-`;
 
 const Footer = styled.div`
   position: fixed;
@@ -692,74 +622,3 @@ const ConfirmButton = styled.button`
   }
 `;
 
-const ModalOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-`;
-
-const ModalContent = styled.div`
-  background: white;
-  border-radius: ${({ theme }) => theme.borderRadius.xl};
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: ${({ theme }) => theme.shadows.lg};
-`;
-
-const ModalTitle = styled.h3`
-  font-size: ${({ theme }) => theme.fontSize.lg};
-  font-weight: 700;
-  margin-bottom: 0.75rem;
-`;
-
-const ModalText = styled.p`
-  font-size: ${({ theme }) => theme.fontSize.sm};
-  color: ${({ theme }) => theme.colors.textSecondary};
-  line-height: 1.5;
-  margin-bottom: 1.5rem;
-`;
-
-const ModalActions = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-`;
-
-const ModalCancelButton = styled.button`
-  padding: 0.5rem 1rem;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  background: white;
-  color: ${({ theme }) => theme.colors.text};
-  font-weight: 600;
-  font-size: ${({ theme }) => theme.fontSize.sm};
-  cursor: pointer;
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.borderLight};
-  }
-`;
-
-const ModalConfirmButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  background: ${({ theme }) => theme.colors.error};
-  color: white;
-  font-weight: 600;
-  font-size: ${({ theme }) => theme.fontSize.sm};
-  cursor: pointer;
-
-  &:hover {
-    opacity: 0.9;
-  }
-`;

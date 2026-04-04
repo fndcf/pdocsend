@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import {
-  ArrowLeft,
   FileText,
   CheckCircle,
   XCircle,
@@ -10,6 +9,11 @@ import {
   Clock,
   Search,
 } from "lucide-react";
+import {
+  PageHeader,
+  LoadingState as LoadingStateUI,
+  EmptyState,
+} from "@/components/ui";
 import {
   collection,
   onSnapshot,
@@ -59,30 +63,30 @@ export function Historico() {
 
   return (
     <Container>
-      <Header>
-        <BackButton onClick={() => navigate("/")}>
-          <ArrowLeft size={18} />
-          Voltar
-        </BackButton>
-        <HeaderTitle>Histórico de Envios</HeaderTitle>
-        <SearchContactButton onClick={() => navigate("/historico/contato")}>
-          <Search size={16} />
-          Buscar contato
-        </SearchContactButton>
-      </Header>
+      <PageHeader
+        title="Histórico de Envios"
+        onBack={() => navigate("/")}
+        actions={
+          <SearchContactButton onClick={() => navigate("/historico/contato")}>
+            <Search size={16} />
+            Buscar contato
+          </SearchContactButton>
+        }
+      />
 
       <TenantGuard loading={tenantLoading} error={tenantError}>
       <Content>
         {loading ? (
-          <LoadingState>
+          <LoadingStateUI>
             <Loader size={32} className="spin" />
             <p>Carregando...</p>
-          </LoadingState>
+          </LoadingStateUI>
         ) : lotes.length === 0 ? (
           <EmptyState>
             <FileText size={48} color="#9ca3af" />
             <p>Nenhum envio realizado ainda.</p>
           </EmptyState>
+
         ) : (
           <LotesList>
             {lotes.map((lote) => (
@@ -144,30 +148,6 @@ const Container = styled.div`
   background: ${({ theme }) => theme.colors.background};
 `;
 
-const Header = styled.header`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: ${({ theme }) => theme.colors.surface};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-
-  @media (min-width: 640px) {
-    gap: 1rem;
-    padding: 1rem 2rem;
-  }
-`;
-
-const HeaderTitle = styled.h1`
-  font-size: ${({ theme }) => theme.fontSize.md};
-  font-weight: 700;
-  flex: 1;
-  text-align: center;
-
-  @media (min-width: 640px) {
-    font-size: ${({ theme }) => theme.fontSize.lg};
-  }
-`;
 
 const SearchContactButton = styled.button`
   display: flex;
@@ -193,21 +173,6 @@ const SearchContactButton = styled.button`
   }
 `;
 
-const BackButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.75rem;
-  background: none;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => theme.fontSize.sm};
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.borderLight};
-  }
-`;
 
 const Content = styled.main`
   max-width: 800px;
@@ -220,34 +185,6 @@ const Content = styled.main`
   }
 `;
 
-const LoadingState = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 4rem;
-  color: ${({ theme }) => theme.colors.textSecondary};
-
-  .spin {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`;
-
-const EmptyState = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 4rem 2rem;
-  color: ${({ theme }) => theme.colors.textSecondary};
-  text-align: center;
-`;
 
 const LotesList = styled.div`
   display: flex;

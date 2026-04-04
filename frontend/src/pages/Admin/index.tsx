@@ -6,7 +6,6 @@ import {
   UserPlus,
   Building2,
   Activity,
-  AlertCircle,
   Loader,
   CheckCircle,
   XCircle,
@@ -15,6 +14,7 @@ import {
   LogOut,
   Settings,
 } from "lucide-react";
+import { ErrorAlert, SuccessAlert, Modal as ModalUI } from "@/components/ui";
 import apiClient from "@/services/apiClient";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -235,19 +235,8 @@ export function Admin() {
       </Tabs>
 
       <Content>
-        {formSuccess && (
-          <SuccessBox>
-            <CheckCircle size={16} />
-            {formSuccess}
-          </SuccessBox>
-        )}
-
-        {error && (
-          <ErrorBox>
-            <AlertCircle size={16} />
-            {error}
-          </ErrorBox>
-        )}
+        {formSuccess && <StyledSuccessAlert message={formSuccess} />}
+        {error && <StyledErrorAlert message={error} />}
 
         {loading ? (
           <LoadingState>
@@ -351,8 +340,7 @@ export function Admin() {
 
       {/* MODAL: NOVO CLIENTE */}
       {showNovoCliente && selectedPendente && (
-        <ModalOverlay onClick={() => setShowNovoCliente(false)}>
-          <ModalContent onClick={(e) => e.stopPropagation()}>
+        <ModalUI onClose={() => setShowNovoCliente(false)} maxWidth="520px">
             <ModalHeader>
               <ModalTitle>Configurar novo cliente</ModalTitle>
               <CloseButton onClick={() => setShowNovoCliente(false)}>
@@ -399,25 +387,18 @@ export function Admin() {
                 <Input type="number" value={formLimiteDiario} onChange={(e) => setFormLimiteDiario(e.target.value)} min="1" max="1000" />
               </FormGroup>
 
-              {formError && (
-                <ErrorBox>
-                  <AlertCircle size={16} />
-                  {formError}
-                </ErrorBox>
-              )}
+              {formError && <ErrorAlert message={formError} />}
 
               <SubmitButton type="submit" disabled={formLoading}>
                 {formLoading ? "Configurando..." : "Configurar cliente"}
               </SubmitButton>
             </Form>
-          </ModalContent>
-        </ModalOverlay>
+        </ModalUI>
       )}
 
       {/* MODAL: EDITAR CLIENTE */}
       {showEditCliente && editingCliente && (
-        <ModalOverlay onClick={() => setShowEditCliente(false)}>
-          <ModalContent onClick={(e) => e.stopPropagation()}>
+        <ModalUI onClose={() => setShowEditCliente(false)} maxWidth="520px">
             <ModalHeader>
               <ModalTitle>Editar cliente</ModalTitle>
               <CloseButton onClick={() => setShowEditCliente(false)}>
@@ -464,19 +445,13 @@ export function Admin() {
                 <Input type="number" value={formLimiteDiario} onChange={(e) => setFormLimiteDiario(e.target.value)} min="1" max="1000" />
               </FormGroup>
 
-              {formError && (
-                <ErrorBox>
-                  <AlertCircle size={16} />
-                  {formError}
-                </ErrorBox>
-              )}
+              {formError && <ErrorAlert message={formError} />}
 
               <SubmitButton type="submit" disabled={formLoading}>
                 {formLoading ? "Salvando..." : "Salvar alterações"}
               </SubmitButton>
             </Form>
-          </ModalContent>
-        </ModalOverlay>
+        </ModalUI>
       )}
     </Container>
   );
@@ -567,20 +542,12 @@ const EmptyState = styled.div`
   text-align: center; padding: 3rem; color: ${({ theme }) => theme.colors.textSecondary};
 `;
 
-const SuccessBox = styled.div`
-  display: flex; align-items: center; gap: 0.5rem;
-  padding: 0.75rem; margin-bottom: 1rem;
-  background: #f0fdf4; border: 1px solid #bbf7d0;
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  color: #16a34a; font-size: ${({ theme }) => theme.fontSize.sm};
+const StyledSuccessAlert = styled(SuccessAlert)`
+  margin-bottom: 1rem;
 `;
 
-const ErrorBox = styled.div`
-  display: flex; align-items: center; gap: 0.5rem;
-  padding: 0.75rem; margin-bottom: 1rem;
-  background: #fef2f2; border: 1px solid #fecaca;
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  color: #991b1b; font-size: ${({ theme }) => theme.fontSize.sm};
+const StyledErrorAlert = styled(ErrorAlert)`
+  margin-bottom: 1rem;
 `;
 
 const Card = styled.div<{ $clickable?: boolean }>`
@@ -672,18 +639,6 @@ const LoteStats = styled.span`
   font-size: ${({ theme }) => theme.fontSize.xs};
 `;
 
-// Modal
-const ModalOverlay = styled.div`
-  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1000; padding: 1rem;
-`;
-
-const ModalContent = styled.div`
-  background: white; border-radius: ${({ theme }) => theme.borderRadius.xl};
-  padding: 1.5rem; width: 100%; max-width: 520px;
-  max-height: 90vh; overflow-y: auto;
-`;
 
 const ModalHeader = styled.div`
   display: flex; justify-content: space-between; align-items: center;

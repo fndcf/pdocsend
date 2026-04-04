@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import styled from "styled-components";
-import { LogIn, AlertCircle, Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { LogIn, Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { ErrorAlert, LoadingOverlay as LoadingOverlayUI } from "@/components/ui";
 import { doc, getDoc } from "firebase/firestore";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth as firebaseAuth, db } from "@/config/firebase";
@@ -117,10 +118,7 @@ export function Login() {
                 </InputGroup>
 
                 {resetError && (
-                  <ErrorBox>
-                    <AlertCircle size={16} />
-                    {resetError}
-                  </ErrorBox>
+                  <ErrorAlert message={resetError} />
                 )}
 
                 <Button type="submit" disabled={resetLoading}>
@@ -142,10 +140,10 @@ export function Login() {
   return (
     <Container>
       {loading && (
-        <LoadingOverlay>
+        <LoadingOverlayUI>
           <LogIn size={32} color="#2563eb" className="spin" />
           <LoadingText>Entrando...</LoadingText>
-        </LoadingOverlay>
+        </LoadingOverlayUI>
       )}
       <Card>
         <Logo>PDocSend</Logo>
@@ -182,12 +180,7 @@ export function Login() {
             </PendingBox>
           )}
 
-          {error && (
-            <ErrorBox>
-              <AlertCircle size={16} />
-              {error}
-            </ErrorBox>
-          )}
+          {error && <ErrorAlert message={error} />}
 
           <ForgotPassword type="button" onClick={() => setShowResetPassword(true)}>
             Esqueceu sua senha?
@@ -217,25 +210,6 @@ const Container = styled.div`
   position: relative;
 `;
 
-const LoadingOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.9);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  z-index: 100;
-
-  .spin {
-    animation: spin 1.5s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-`;
 
 const LoadingText = styled.p`
   font-size: ${({ theme }) => theme.fontSize.md};
@@ -309,17 +283,6 @@ const PendingBox = styled.div`
   line-height: 1.5;
 `;
 
-const ErrorBox = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  color: #991b1b;
-  font-size: ${({ theme }) => theme.fontSize.sm};
-`;
 
 const Button = styled.button`
   display: flex;
