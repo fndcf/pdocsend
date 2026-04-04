@@ -12,14 +12,11 @@ class MessageBuilderService {
    */
   montarMensagem(contato: Contato, template: MensagemTemplate): string {
     const saudacao = getSaudacao();
-    const nome = contato.nome;
-    const operacaoTexto = this.montarOperacao(contato.imoveis);
-
-    return (
-      `${saudacao} ${nome}, tudo bem?\n` +
-      `Sou o ${template.nomeCorretor}, ${template.cargo} do ${template.nomeEmpresa}. ` +
-      `Estou entrando em contato para saber se você tem interesse em conversarmos sobre ${operacaoTexto}.\n\n` +
-      `Fico à disposição!`
+    return this.aplicarVariaveis(
+      this.getTextoTemplate(template),
+      contato,
+      template,
+      saudacao
     );
   }
 
@@ -27,15 +24,56 @@ class MessageBuilderService {
    * Monta a mensagem com saudação fixa (para preview na tela de revisão)
    */
   montarMensagemPreview(contato: Contato, template: MensagemTemplate): string {
-    const nome = contato.nome;
-    const operacaoTexto = this.montarOperacao(contato.imoveis);
-
-    return (
-      `{saudação} ${nome}, tudo bem?\n` +
-      `Sou o ${template.nomeCorretor}, ${template.cargo} do ${template.nomeEmpresa}. ` +
-      `Estou entrando em contato para saber se você tem interesse em conversarmos sobre ${operacaoTexto}.\n\n` +
-      `Fico à disposição!`
+    return this.aplicarVariaveis(
+      this.getTextoTemplate(template),
+      contato,
+      template,
+      "{saudação}"
     );
+  }
+
+  /**
+   * Retorna o texto do template (customizado ou padrao)
+   */
+  private getTextoTemplate(template: MensagemTemplate): string {
+    if (template.textoPersonalizado) {
+      return template.textoPersonalizado;
+    }
+    return (
+      "{saudacao} {nome}, tudo bem?\n" +
+      "Sou o {nomeCorretor}, {cargo} do {nomeEmpresa}. " +
+      "Estou entrando em contato para saber se você tem interesse em conversarmos sobre {operacao}.\n\n" +
+      "Fico à disposição!"
+    );
+  }
+
+  /**
+   * Substitui variaveis no template
+   */
+  private aplicarVariaveis(
+    texto: string,
+    contato: Contato,
+    template: MensagemTemplate,
+    saudacao: string
+  ): string {
+    const operacaoTexto = this.montarOperacao(contato.imoveis);
+    return texto
+      .replace(/\{saudacao\}/gi, saudacao)
+      .replace(/\{saudação\}/gi, saudacao)
+      .replace(/\{nome\}/gi, contato.nome)
+      .replace(/\{nomeCorretor\}/gi, template.nomeCorretor)
+      .replace(/\{nomeEmpresa\}/gi, template.nomeEmpresa)
+      .replace(/\{cargo\}/gi, template.cargo)
+      .replace(/\{operacao\}/gi, operacaoTexto)
+      .replace(/\{operação\}/gi, operacaoTexto);
+  }
+
+  /**
+   * Substitui {saudação} pela saudação dinâmica na mensagem editada pelo corretor
+   */
+  aplicarSaudacao(mensagem: string): string {
+    const saudacao = getSaudacao();
+    return mensagem.replace(/\{saudação\}/gi, saudacao);
   }
 
   /**

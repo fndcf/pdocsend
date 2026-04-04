@@ -37,6 +37,7 @@ export function Admin() {
   const [formToken, setFormToken] = useState("");
   const [formClientToken, setFormClientToken] = useState("");
   const [formLimiteDiario, setFormLimiteDiario] = useState("200");
+  const [formTextoPersonalizado, setFormTextoPersonalizado] = useState("");
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -54,6 +55,7 @@ export function Admin() {
         nomeCorretor: formCorretor,
         nomeEmpresa: formEmpresa,
         cargo: formCargo,
+        ...(formTextoPersonalizado && { textoPersonalizado: formTextoPersonalizado }),
         zapiInstanceId: formInstanceId,
         zapiToken: formToken,
         zapiClientToken: formClientToken,
@@ -81,6 +83,7 @@ export function Admin() {
     setFormToken("");
     setFormClientToken("");
     setFormLimiteDiario("200");
+    setFormTextoPersonalizado("");
     setFormError("");
   };
 
@@ -100,6 +103,7 @@ export function Admin() {
     setFormCorretor(cliente.mensagemTemplate?.nomeCorretor || "");
     setFormEmpresa(cliente.mensagemTemplate?.nomeEmpresa || "");
     setFormCargo(cliente.mensagemTemplate?.cargo || "corretor");
+    setFormTextoPersonalizado((cliente.mensagemTemplate as Record<string, string>)?.textoPersonalizado || "");
     setFormInstanceId("");
     setFormToken("");
     setFormClientToken("");
@@ -122,6 +126,7 @@ export function Admin() {
       if (formCorretor) body.nomeCorretor = formCorretor;
       if (formEmpresa) body.nomeEmpresa = formEmpresa;
       if (formCargo) body.cargo = formCargo;
+      body.textoPersonalizado = formTextoPersonalizado;
       if (formInstanceId) body.zapiInstanceId = formInstanceId;
       if (formToken) body.zapiToken = formToken;
       if (formClientToken) body.zapiClientToken = formClientToken;
@@ -319,6 +324,18 @@ export function Admin() {
                 <Label>Limite diário de mensagens</Label>
                 <Input type="number" value={formLimiteDiario} onChange={(e) => setFormLimiteDiario(e.target.value)} min="1" max="1000" />
               </FormGroup>
+              <FormGroup>
+                <Label>Mensagem personalizada (opcional)</Label>
+                <Textarea
+                  value={formTextoPersonalizado}
+                  onChange={(e) => setFormTextoPersonalizado(e.target.value)}
+                  rows={5}
+                  placeholder={"{saudacao} {nome}, tudo bem?\nSou o {nomeCorretor}, {cargo} do {nomeEmpresa}. Estou entrando em contato para saber se você tem interesse em conversarmos sobre {operacao}.\n\nFico à disposição!"}
+                />
+                <HelpText>
+                  Variáveis: {"{saudacao}"}, {"{nome}"}, {"{nomeCorretor}"}, {"{nomeEmpresa}"}, {"{cargo}"}, {"{operacao}"}
+                </HelpText>
+              </FormGroup>
 
               {formError && <ErrorAlert message={formError} />}
 
@@ -376,6 +393,18 @@ export function Admin() {
               <FormGroup>
                 <Label>Limite diário de mensagens</Label>
                 <Input type="number" value={formLimiteDiario} onChange={(e) => setFormLimiteDiario(e.target.value)} min="1" max="1000" />
+              </FormGroup>
+              <FormGroup>
+                <Label>Mensagem personalizada</Label>
+                <Textarea
+                  value={formTextoPersonalizado}
+                  onChange={(e) => setFormTextoPersonalizado(e.target.value)}
+                  rows={5}
+                  placeholder={"{saudacao} {nome}, tudo bem?\nSou o {nomeCorretor}, {cargo} do {nomeEmpresa}. Estou entrando em contato para saber se você tem interesse em conversarmos sobre {operacao}.\n\nFico à disposição!"}
+                />
+                <HelpText>
+                  Variáveis: {"{saudacao}"}, {"{nome}"}, {"{nomeCorretor}"}, {"{nomeEmpresa}"}, {"{cargo}"}, {"{operacao}"}. Deixe vazio para usar o texto padrão.
+                </HelpText>
               </FormGroup>
 
               {formError && <ErrorAlert message={formError} />}
@@ -616,6 +645,24 @@ const Input = styled.input`
   font-size: ${({ theme }) => theme.fontSize.sm};
   outline: none;
   &:focus { border-color: ${({ theme }) => theme.colors.primary}; }
+`;
+
+const Textarea = styled.textarea`
+  padding: 0.5rem 0.75rem;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  font-family: inherit;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+  &:focus { border-color: ${({ theme }) => theme.colors.primary}; }
+`;
+
+const HelpText = styled.span`
+  font-size: ${({ theme }) => theme.fontSize.xs};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  line-height: 1.4;
 `;
 
 const SubmitButton = styled.button`

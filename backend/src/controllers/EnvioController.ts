@@ -81,6 +81,7 @@ class EnvioController {
           nome: contato.nome,
           nomeContato,
           imoveis: contato.imoveis,
+          mensagem: (contato as unknown as Record<string, unknown>).mensagemPreview as string || "",
         });
 
         payloads.push({ tenantId, loteId, envioId });

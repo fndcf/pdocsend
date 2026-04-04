@@ -80,8 +80,10 @@ export function Historico() {
 
   const formatDate = (timestamp: unknown): string => {
     if (!timestamp) return "-";
-    const ts = timestamp as { seconds: number };
-    return new Date(ts.seconds * 1000).toLocaleDateString("pt-BR", {
+    const ts = timestamp as Record<string, unknown>;
+    const secs = (ts.seconds || ts._seconds) as number | undefined;
+    if (!secs) return "-";
+    return new Date(secs * 1000).toLocaleDateString("pt-BR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",

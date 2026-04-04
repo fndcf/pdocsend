@@ -7,6 +7,7 @@ interface CriarEnvioData {
   nome: string;
   nomeContato: string;
   imoveis: Imovel[];
+  mensagem?: string;
 }
 
 interface ContadoresEnvio {
@@ -41,7 +42,7 @@ class EnvioRepository {
     const ref = this.getEnvioRef(tenantId, loteId);
     await ref.set({
       ...data,
-      mensagem: "",
+      mensagem: data.mensagem || "",
       status: "pendente",
       erro: "",
       enviadoEm: null,

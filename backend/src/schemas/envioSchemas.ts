@@ -16,6 +16,7 @@ const contatoComStatusSchema = z.object({
   imoveis: z.array(imovelSchema).min(1, "Pelo menos um imóvel é obrigatório"),
   status: z.enum(["novo", "ja_enviado"]),
   dataUltimoEnvio: z.string().optional(),
+  mensagemPreview: z.string().optional(),
   hashesNovos: z.array(z.string()),
   hashesExistentes: z.array(z.string()),
 });

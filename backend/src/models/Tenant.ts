@@ -15,6 +15,7 @@ export interface MensagemTemplate {
   nomeCorretor: string;
   nomeEmpresa: string;
   cargo: string;
+  textoPersonalizado?: string;
 }
 
 export interface User {

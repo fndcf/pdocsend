@@ -78,10 +78,12 @@ export const processarEnvio = onRequest(
         imoveis: data.imoveis as Contato["imoveis"],
       };
 
-      const mensagem = messageBuilderService.montarMensagem(
-        contato,
-        tenant.mensagemTemplate
-      );
+      // Se já tem mensagem editada pelo corretor, substituir {saudação}
+      // Caso contrário, gerar do zero
+      const mensagemSalva = data.mensagem as string;
+      const mensagem = mensagemSalva
+        ? messageBuilderService.aplicarSaudacao(mensagemSalva)
+        : messageBuilderService.montarMensagem(contato, tenant.mensagemTemplate);
 
       // 5. Enviar via Z-API
       await zApiService.enviarMensagem(
