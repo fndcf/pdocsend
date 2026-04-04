@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { onRequest } from "firebase-functions/v2/https";
 import routes from "./routes";
 import { errorHandler } from "./middlewares/errorHandler";
@@ -26,6 +27,27 @@ app.use(
       }
     },
     credentials: true,
+  })
+);
+
+// Rate limiting
+app.use(
+  rateLimit({
+    windowMs: 60 * 1000, // 1 minuto
+    max: 100, // 100 requests por minuto por IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: "Muitas requisições. Tente novamente em instantes." },
+  })
+);
+
+// Rate limiting mais restritivo para upload de PDF
+app.use(
+  "/api/pdf",
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 10, // 10 uploads por minuto
+    message: { success: false, error: "Muitos uploads. Aguarde um momento." },
   })
 );
 

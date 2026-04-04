@@ -125,8 +125,10 @@ class EnvioController {
   async listarLotes(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { tenantId } = req.user;
-      const lotes = await loteRepository.listarPorTenant(tenantId);
-      ResponseHelper.success(res, lotes);
+      const cursor = req.query.cursor as string | undefined;
+      const limite = Math.min(parseInt(req.query.limite as string) || 20, 100);
+      const result = await loteRepository.listarPorTenant(tenantId, limite, cursor);
+      ResponseHelper.success(res, result);
     } catch (error) {
       logger.error("Erro ao listar lotes", { tenantId: req.user?.tenantId }, error);
       ResponseHelper.internalError(res, "Erro ao listar lotes");

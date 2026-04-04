@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import {
@@ -78,12 +78,12 @@ export function Revisao() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
 
-  const handleStartEdit = (index: number, nome: string) => {
+  const handleStartEdit = useCallback((index: number, nome: string) => {
     setEditingIndex(index);
     setEditingName(nome);
-  };
+  }, []);
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = useCallback(() => {
     if (editingIndex !== null && editingName.trim()) {
       setContatos((prev) =>
         prev.map((c, i) =>
@@ -92,23 +92,23 @@ export function Revisao() {
       );
       setEditingIndex(null);
     }
-  };
+  }, [editingIndex, editingName]);
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     setEditingIndex(null);
     setEditingName("");
-  };
+  }, []);
 
-  const handleRemover = (index: number) => {
+  const handleRemover = useCallback((index: number) => {
     setConfirmRemoveIndex(index);
-  };
+  }, []);
 
-  const confirmarRemocao = () => {
+  const confirmarRemocao = useCallback(() => {
     if (confirmRemoveIndex !== null) {
       setContatos((prev) => prev.filter((_, i) => i !== confirmRemoveIndex));
       setConfirmRemoveIndex(null);
     }
-  };
+  }, [confirmRemoveIndex]);
 
   const handleConfirmarEnvio = async () => {
     if (novos.length === 0) return;

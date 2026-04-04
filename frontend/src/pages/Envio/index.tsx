@@ -1,3 +1,4 @@
+import { useCallback, memo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import styled from "styled-components";
 import {
@@ -20,6 +21,7 @@ import apiClient from "@/services/apiClient";
 import { useTenant } from "@/hooks/useTenant";
 import { useLoteProgress } from "@/hooks/useLoteProgress";
 import { TenantGuard } from "@/components/TenantGuard";
+import { EnvioItem } from "@/types";
 
 export function Envio() {
   const { loteId } = useParams<{ loteId: string }>();
@@ -32,6 +34,23 @@ export function Envio() {
 
   const { lote, loteNotFound, envios, progresso, finalizado, cancelados, pendentes } =
     useLoteProgress(tenantId, loteId);
+
+  const handleCancelarLote = useCallback(async () => {
+    if (!confirm("Cancelar envio? Mensagens já enviadas não serão desfeitas.")) return;
+    try {
+      await apiClient.post(`/envios/lotes/${loteId}/cancelar`, {});
+    } catch {
+      alert("Erro ao cancelar envio. Tente novamente.");
+    }
+  }, [loteId]);
+
+  const handleCancelarEnvio = useCallback(async (envioId: string) => {
+    try {
+      await apiClient.post(`/envios/lotes/${loteId}/envios/${envioId}/cancelar`, {});
+    } catch {
+      alert("Erro ao cancelar envio");
+    }
+  }, [loteId]);
 
   if (tenantLoading || (!lote && !loteNotFound)) {
     return (
@@ -110,16 +129,7 @@ export function Envio() {
             )}
           </ProgressStats>
           {lote.status === "em_andamento" && (
-            <CancelButton
-              onClick={async () => {
-                if (!confirm("Cancelar envio? Mensagens já enviadas não serão desfeitas.")) return;
-                try {
-                  await apiClient.post(`/envios/lotes/${loteId}/cancelar`, {});
-                } catch {
-                  alert("Erro ao cancelar envio. Tente novamente.");
-                }
-              }}
-            >
+            <CancelButton onClick={handleCancelarLote}>
               <StopCircle size={16} />
               Cancelar envio
             </CancelButton>
@@ -129,62 +139,63 @@ export function Envio() {
         {/* Lista de envios */}
         <EnviosList>
           {envios.map((envio) => (
-            <EnvioCard key={envio.id} $status={envio.status}>
-              <StatusIcon>
-                {envio.status === "enviado" && (
-                  <CheckCircle size={18} color="#16a34a" />
-                )}
-                {envio.status === "erro" && (
-                  <XCircle size={18} color="#dc2626" />
-                )}
-                {envio.status === "enviando" && (
-                  <Loader size={18} color="#f59e0b" className="spin" />
-                )}
-                {envio.status === "pendente" && (
-                  <Clock size={18} color="#9ca3af" />
-                )}
-                {envio.status === "cancelado" && (
-                  <StopCircle size={18} color="#9ca3af" />
-                )}
-              </StatusIcon>
-              <EnvioInfo>
-                <EnvioNome>{envio.nomeContato}</EnvioNome>
-                <EnvioTelefone>{envio.telefone}</EnvioTelefone>
-                {envio.erro && <EnvioErro>{envio.erro}</EnvioErro>}
-              </EnvioInfo>
-              <EnvioActions>
-                <StatusBadge $status={envio.status}>
-                  {envio.status === "enviado" && "Enviado"}
-                  {envio.status === "erro" && "Erro"}
-                  {envio.status === "enviando" && "Enviando..."}
-                  {envio.status === "pendente" && "Pendente"}
-                  {envio.status === "cancelado" && "Cancelado"}
-                </StatusBadge>
-                {envio.status === "pendente" && (
-                  <CancelEnvioButton
-                    onClick={async () => {
-                      try {
-                        await apiClient.post(
-                          `/envios/lotes/${loteId}/envios/${envio.id}/cancelar`,
-                          {}
-                        );
-                      } catch {
-                        alert("Erro ao cancelar envio");
-                      }
-                    }}
-                    title="Cancelar este envio"
-                  >
-                    <X size={14} />
-                  </CancelEnvioButton>
-                )}
-              </EnvioActions>
-            </EnvioCard>
+            <EnvioCardItem
+              key={envio.id}
+              envio={envio}
+              onCancel={handleCancelarEnvio}
+            />
           ))}
         </EnviosList>
       </Content>
     </Container>
   );
 }
+
+const statusLabels: Record<string, string> = {
+  enviado: "Enviado",
+  erro: "Erro",
+  enviando: "Enviando...",
+  pendente: "Pendente",
+  cancelado: "Cancelado",
+};
+
+const EnvioCardItem = memo(function EnvioCardItem({
+  envio,
+  onCancel,
+}: {
+  envio: EnvioItem;
+  onCancel: (envioId: string) => void;
+}) {
+  return (
+    <EnvioCard $status={envio.status}>
+      <StatusIcon>
+        {envio.status === "enviado" && <CheckCircle size={18} color="#16a34a" />}
+        {envio.status === "erro" && <XCircle size={18} color="#dc2626" />}
+        {envio.status === "enviando" && <Loader size={18} color="#f59e0b" className="spin" />}
+        {envio.status === "pendente" && <Clock size={18} color="#9ca3af" />}
+        {envio.status === "cancelado" && <StopCircle size={18} color="#9ca3af" />}
+      </StatusIcon>
+      <EnvioInfo>
+        <EnvioNome>{envio.nomeContato}</EnvioNome>
+        <EnvioTelefone>{envio.telefone}</EnvioTelefone>
+        {envio.erro && <EnvioErro>{envio.erro}</EnvioErro>}
+      </EnvioInfo>
+      <EnvioActions>
+        <StatusBadge $status={envio.status}>
+          {statusLabels[envio.status] || envio.status}
+        </StatusBadge>
+        {envio.status === "pendente" && (
+          <CancelEnvioButton
+            onClick={() => onCancel(envio.id)}
+            title="Cancelar este envio"
+          >
+            <X size={14} />
+          </CancelEnvioButton>
+        )}
+      </EnvioActions>
+    </EnvioCard>
+  );
+});
 
 const Container = styled.div`
   min-height: 100vh;

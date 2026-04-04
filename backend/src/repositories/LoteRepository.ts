@@ -25,14 +25,29 @@ class LoteRepository {
     return { id: doc.id, ...doc.data() };
   }
 
-  async listarPorTenant(tenantId: string, limite = 50) {
-    const snapshot = await db
+  async listarPorTenant(tenantId: string, limite = 20, cursor?: string) {
+    let query = db
       .collection(`tenants/${tenantId}/lotes`)
-      .orderBy("criadoEm", "desc")
-      .limit(limite)
-      .get();
+      .orderBy("criadoEm", "desc");
 
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    if (cursor) {
+      const cursorDoc = await db.collection(`tenants/${tenantId}/lotes`).doc(cursor).get();
+      if (cursorDoc.exists) {
+        query = query.startAfter(cursorDoc);
+      }
+    }
+
+    const snapshot = await query.limit(limite + 1).get();
+
+    const docs = snapshot.docs.slice(0, limite);
+    const hasMore = snapshot.docs.length > limite;
+    const nextCursor = hasMore ? docs[docs.length - 1].id : undefined;
+
+    return {
+      lotes: docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+      hasMore,
+      nextCursor,
+    };
   }
 
   async listarDesde(tenantId: string, desde: Timestamp) {

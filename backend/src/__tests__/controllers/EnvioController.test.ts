@@ -147,7 +147,7 @@ describe("EnvioController", () => {
 
   describe("listarLotes", () => {
     it("deve retornar lista vazia", async () => {
-      const req = { user: baseUser } as unknown as AuthRequest;
+      const req = { user: baseUser, query: {} } as unknown as AuthRequest;
       const res = mockRes();
 
       await envioController.listarLotes(req, res);

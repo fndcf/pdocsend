@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import {
@@ -8,46 +8,75 @@ import {
   Loader,
   Clock,
   Search,
+  ChevronDown,
 } from "lucide-react";
 import {
   PageHeader,
   LoadingState as LoadingStateUI,
   EmptyState,
 } from "@/components/ui";
-import {
-  collection,
-  onSnapshot,
-  query,
-  orderBy,
-} from "firebase/firestore";
-import { db } from "@/config/firebase";
+import apiClient from "@/services/apiClient";
 import { useTenant } from "@/hooks/useTenant";
 import { TenantGuard } from "@/components/TenantGuard";
 import { Lote } from "@/types";
+
+interface LotesResponse {
+  lotes: Lote[];
+  hasMore: boolean;
+  nextCursor?: string;
+}
 
 export function Historico() {
   const navigate = useNavigate();
   const { tenantId, loading: tenantLoading, error: tenantError } = useTenant();
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | undefined>();
 
-  // Escutar lotes
-  useEffect(() => {
+  const fetchLotes = useCallback(async (cursor?: string) => {
     if (!tenantId) return;
 
-    const lotesRef = collection(db, `tenants/${tenantId}/lotes`);
-    const q = query(lotesRef, orderBy("criadoEm", "desc"));
+    const isLoadMore = !!cursor;
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
 
-    const unsubscribe = onSnapshot(q, (snap) => {
-      const items = snap.docs.map(
-        (d) => ({ id: d.id, ...d.data() }) as Lote
+    try {
+      const params = new URLSearchParams();
+      if (cursor) params.set("cursor", cursor);
+
+      const result = await apiClient.get<LotesResponse>(
+        `/envios/lotes${params.toString() ? `?${params}` : ""}`
       );
-      setLotes(items);
-      setLoading(false);
-    });
 
-    return unsubscribe;
+      if (isLoadMore) {
+        setLotes((prev) => [...prev, ...result.lotes]);
+      } else {
+        setLotes(result.lotes);
+      }
+      setHasMore(result.hasMore);
+      setNextCursor(result.nextCursor);
+    } catch {
+      // Erro silencioso - lista fica vazia
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
   }, [tenantId]);
+
+  useEffect(() => {
+    fetchLotes();
+  }, [fetchLotes]);
+
+  const handleLoadMore = useCallback(() => {
+    if (nextCursor && !loadingMore) {
+      fetchLotes(nextCursor);
+    }
+  }, [nextCursor, loadingMore, fetchLotes]);
 
   const formatDate = (timestamp: unknown): string => {
     if (!timestamp) return "-";
@@ -86,56 +115,68 @@ export function Historico() {
             <FileText size={48} color="#9ca3af" />
             <p>Nenhum envio realizado ainda.</p>
           </EmptyState>
-
         ) : (
-          <LotesList>
-            {lotes.map((lote) => (
-              <LoteCard
-                key={lote.id}
-                onClick={() => navigate(`/envio/${lote.id}`)}
-              >
-                <LoteHeader>
-                  <LoteStatus $status={lote.status}>
-                    {lote.status === "finalizado" && (
-                      <CheckCircle size={16} />
-                    )}
-                    {lote.status === "em_andamento" && (
-                      <Loader size={16} className="spin" />
-                    )}
-                    {lote.status === "cancelado" && <XCircle size={16} />}
-                    {lote.status === "finalizado"
-                      ? "Finalizado"
-                      : lote.status === "em_andamento"
-                        ? "Em andamento"
-                        : "Cancelado"}
-                  </LoteStatus>
-                  <LoteDate>
-                    <Clock size={14} />
-                    {formatDate(lote.criadoEm)}
-                  </LoteDate>
-                </LoteHeader>
+          <>
+            <LotesList>
+              {lotes.map((lote) => (
+                <LoteCard
+                  key={lote.id}
+                  onClick={() => navigate(`/envio/${lote.id}`)}
+                >
+                  <LoteHeader>
+                    <LoteStatus $status={lote.status}>
+                      {lote.status === "finalizado" && (
+                        <CheckCircle size={16} />
+                      )}
+                      {lote.status === "em_andamento" && (
+                        <Loader size={16} className="spin" />
+                      )}
+                      {lote.status === "cancelado" && <XCircle size={16} />}
+                      {lote.status === "finalizado"
+                        ? "Finalizado"
+                        : lote.status === "em_andamento"
+                          ? "Em andamento"
+                          : "Cancelado"}
+                    </LoteStatus>
+                    <LoteDate>
+                      <Clock size={14} />
+                      {formatDate(lote.criadoEm)}
+                    </LoteDate>
+                  </LoteHeader>
 
-                <LotePdf>
-                  <FileText size={16} />
-                  {lote.pdfOrigem}
-                </LotePdf>
+                  <LotePdf>
+                    <FileText size={16} />
+                    {lote.pdfOrigem}
+                  </LotePdf>
 
-                <LoteStats>
-                  <LoteStat>
-                    <strong>{lote.totalEnvios}</strong> total
-                  </LoteStat>
-                  <LoteStat $color="green">
-                    <strong>{lote.enviados}</strong> enviados
-                  </LoteStat>
-                  {lote.erros > 0 && (
-                    <LoteStat $color="red">
-                      <strong>{lote.erros}</strong> erros
+                  <LoteStats>
+                    <LoteStat>
+                      <strong>{lote.totalEnvios}</strong> total
                     </LoteStat>
-                  )}
-                </LoteStats>
-              </LoteCard>
-            ))}
-          </LotesList>
+                    <LoteStat $color="green">
+                      <strong>{lote.enviados}</strong> enviados
+                    </LoteStat>
+                    {lote.erros > 0 && (
+                      <LoteStat $color="red">
+                        <strong>{lote.erros}</strong> erros
+                      </LoteStat>
+                    )}
+                  </LoteStats>
+                </LoteCard>
+              ))}
+            </LotesList>
+
+            {hasMore && (
+              <LoadMoreButton onClick={handleLoadMore} disabled={loadingMore}>
+                {loadingMore ? (
+                  <Loader size={16} className="spin" />
+                ) : (
+                  <ChevronDown size={16} />
+                )}
+                {loadingMore ? "Carregando..." : "Carregar mais"}
+              </LoadMoreButton>
+            )}
+          </>
         )}
       </Content>
       </TenantGuard>
@@ -147,7 +188,6 @@ const Container = styled.div`
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.background};
 `;
-
 
 const SearchContactButton = styled.button`
   display: flex;
@@ -173,7 +213,6 @@ const SearchContactButton = styled.button`
   }
 `;
 
-
 const Content = styled.main`
   max-width: 800px;
   margin: 1rem auto;
@@ -184,7 +223,6 @@ const Content = styled.main`
     padding: 0 2rem;
   }
 `;
-
 
 const LotesList = styled.div`
   display: flex;
@@ -269,5 +307,43 @@ const LoteStat = styled.span<{ $color?: string }>`
 
   strong {
     font-weight: 700;
+  }
+`;
+
+const LoadMoreButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem;
+  margin-top: 1rem;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  .spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  &:hover:not(:disabled) {
+    background: ${({ theme }) => theme.colors.borderLight};
+    color: ${({ theme }) => theme.colors.text};
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
   }
 `;
