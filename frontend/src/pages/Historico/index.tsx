@@ -30,37 +30,36 @@ interface LotesResponse {
 export function Historico() {
   const navigate = useNavigate();
   const { tenantId, loading: tenantLoading, error: tenantError } = useTenant();
-  const [allLotes, setAllLotes] = useState<Lote[]>([]);
-  const [cursor, setCursor] = useState<string | undefined>();
-  const [hasMore, setHasMore] = useState(false);
+  const [extraLotes, setExtraLotes] = useState<Lote[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | undefined>();
+  const [extraHasMore, setExtraHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const { isLoading: loading } = useQuery({
+  const { data: firstPage, isLoading: loading } = useQuery({
     queryKey: ["lotes", tenantId],
-    queryFn: async () => {
-      const result = await apiClient.get<LotesResponse>("/envios/lotes");
-      setAllLotes(result.lotes);
-      setHasMore(result.hasMore);
-      setCursor(result.nextCursor);
-      return result;
-    },
+    queryFn: () => apiClient.get<LotesResponse>("/envios/lotes"),
     enabled: !!tenantId,
   });
 
+  // Combinar primeira pagina (React Query) com paginas extras (useState)
+  const allLotes = [...(firstPage?.lotes || []), ...extraLotes];
+  const hasMore = extraLotes.length > 0 ? extraHasMore : (firstPage?.hasMore || false);
+  const currentCursor = nextCursor || firstPage?.nextCursor;
+
   const handleLoadMore = useCallback(async () => {
-    if (!cursor || loadingMore) return;
+    if (!currentCursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const result = await apiClient.get<LotesResponse>(`/envios/lotes?cursor=${cursor}`);
-      setAllLotes((prev) => [...prev, ...result.lotes]);
-      setHasMore(result.hasMore);
-      setCursor(result.nextCursor);
+      const result = await apiClient.get<LotesResponse>(`/envios/lotes?cursor=${currentCursor}`);
+      setExtraLotes((prev) => [...prev, ...result.lotes]);
+      setExtraHasMore(result.hasMore);
+      setNextCursor(result.nextCursor);
     } catch {
       // silencioso
     } finally {
       setLoadingMore(false);
     }
-  }, [cursor, loadingMore]);
+  }, [currentCursor, loadingMore]);
 
   const formatDate = (timestamp: unknown): string => {
     if (!timestamp) return "-";

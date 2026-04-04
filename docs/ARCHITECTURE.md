@@ -1,7 +1,7 @@
 # Arquitetura - PDocSend
 
 > Documento de referencia para manter consistencia em novas implementacoes.
-> Ultima atualizacao: 04/04/2026
+> Ultima atualizacao: 02/04/2026
 
 ---
 
@@ -10,11 +10,11 @@
 ```
 Frontend (React + TypeScript)              Backend (Express + TypeScript)
 
-Upload → Revisao → Envio                   Route → Controller → Service → Firestore
+Upload → Revisao → Envio                   Route → Validate (Zod) → Controller → Service → Repository → Firestore
     ↓                                           ↓
-apiClient (Axios)  ──── REST API ────►    Auth Middleware (JWT + tenant)
+apiClient (Axios)  ──── REST API ────►    Auth Middleware (JWT + tenant) + Rate Limiting
     ↓                                           ↓
-Firestore (onSnapshot) ◄───────────      Cloud Tasks → processarEnvio → Z-API
+React Query (cache) + onSnapshot ◄────   Cloud Tasks → processarEnvio → Z-API
 ```
 
 ### Stack
@@ -25,14 +25,77 @@ Firestore (onSnapshot) ◄───────────      Cloud Tasks →
 | Estilizacao | Styled Components | CSS-in-JS com tema |
 | Roteamento | React Router 6 | Navegacao SPA |
 | HTTP Client | Axios | Comunicacao com backend |
+| Cache/Estado servidor | React Query | Cache, retry, invalidacao |
 | Realtime | Firestore onSnapshot | Progresso de envio |
 | Backend | Express + TypeScript | API REST |
+| Validacao | Zod | Validacao de entrada nas rotas |
+| Rate Limiting | express-rate-limit | 100 req/min global, 10/min upload |
 | Cloud Functions | Firebase Gen 2 | Hosting do backend |
 | Fila | Google Cloud Tasks | Envio assincrono |
 | WhatsApp | Z-API | Envio de mensagens |
 | Database | Cloud Firestore | Persistencia |
 | Auth | Firebase Auth | Autenticacao |
 | CI/CD | GitHub Actions | Lint, testes, deploy |
+
+---
+
+## Camadas do Backend
+
+```
+Route → Validate (Zod) → Controller → Service → Repository → Firestore
+```
+
+| Camada | Responsabilidade | Exemplo |
+|--------|-----------------|---------|
+| Route | Definir endpoints + aplicar middlewares | `envioRoutes.ts` |
+| Schema (Zod) | Validar body, params e query | `envioSchemas.ts` |
+| Controller | Orquestrar services e retornar resposta HTTP | `EnvioController.ts` |
+| Service | Logica de negocio | `MessageBuilderService.ts` |
+| Repository | Acesso ao Firestore (CRUD) | `LoteRepository.ts` |
+
+### Repositories
+
+| Repository | Colecao Firestore |
+|-----------|------------------|
+| `TenantRepository` | `tenants/{id}` |
+| `UserRepository` | `users/{uid}` |
+| `LoteRepository` | `tenants/{id}/lotes/{id}` |
+| `EnvioRepository` | `tenants/{id}/lotes/{id}/envios/{id}` |
+| `ImovelEnviadoRepository` | `tenants/{id}/imoveis_enviados/{hash}` |
+
+## Camadas do Frontend
+
+### Componentes UI reutilizaveis (`components/ui/`)
+
+| Componente | Uso |
+|-----------|-----|
+| `ErrorAlert` | Caixa de erro vermelha com icone |
+| `SuccessAlert` | Caixa de sucesso verde |
+| `LoadingOverlay` | Overlay fullscreen com spinner |
+| `LoadingState` | Estado de carregamento centralizado |
+| `PageHeader` | Header com botao voltar e titulo |
+| `Modal` | Modal com overlay, titulo, acoes |
+| `EmptyState` | Estado vazio com mensagem |
+| `StatusBadge` | Badge colorido por status |
+| `ProgressBar` | Barra de progresso |
+
+### Custom Hooks
+
+| Hook | Responsabilidade |
+|------|-----------------|
+| `useTenant` | Dados do tenant e role (onSnapshot) |
+| `useDashboard` | Metricas do dashboard (React Query) |
+| `useFileUpload` | Drag-drop, validacao e ref do file input |
+| `useLoteProgress` | Listeners realtime do lote + envios (onSnapshot) |
+| `useAdminData` | Dados do painel admin (React Query) |
+
+### React Query
+
+Usado para dados request-response (nao realtime):
+- `staleTime: 30s` - dados considerados frescos por 30 segundos
+- `retry: 2` - tenta 2x em caso de falha
+- Invalidacao automatica apos mutacoes (confirmar envio → invalida dashboard e lotes)
+- **Nao usado** para onSnapshot (lote em progresso, useTenant) - esses continuam realtime
 
 ---
 
@@ -315,6 +378,34 @@ Verificada em dois momentos:
 - OIDC token para autenticar na Cloud Function
 - Max 3 retries com backoff
 
+### Mensagem Personalizada por Tenant
+
+Cada tenant pode ter um template customizado via campo `textoPersonalizado` no `mensagemTemplate`. Se vazio, usa o template padrao.
+
+Variaveis disponiveis no template:
+- `{saudacao}` - Bom dia/Boa tarde/Boa noite (dinamico)
+- `{nome}` - Nome do proprietario
+- `{nomeCorretor}` - Nome do corretor
+- `{nomeEmpresa}` - Nome da empresa
+- `{cargo}` - Cargo do corretor
+- `{operacao}` - Texto da operacao (ex: "a venda do seu imovel no Landing Home")
+
+Template padrao:
+```
+{saudacao} {nome}, tudo bem?
+Sou o {nomeCorretor}, {cargo} do {nomeEmpresa}. Estou entrando em contato para saber se voce tem interesse em conversarmos sobre {operacao}.
+
+Fico a disposicao!
+```
+
+### Preview Editavel
+
+O corretor pode editar a mensagem na tela de Revisao antes de confirmar o envio:
+1. Clica no icone do olho para ver o preview
+2. Edita o texto diretamente no textarea
+3. Ao confirmar, a mensagem editada e salva e enviada
+4. O `{saudacao}` e substituido pela saudacao real no momento do envio
+
 ### Saudacao Dinamica
 
 Calculada no momento do envio (fuso Brasilia):
@@ -343,12 +434,14 @@ Implementado no `PdfController.processar()`:
 
 ## Estrutura de Testes
 
-### Backend
+### Backend (122 testes, 12 suites)
 
 ```
 src/__tests__/
 ├── controllers/
-│   └── EnvioController.test.ts      # Confirmar, cancelar, listar, historico
+│   ├── EnvioController.test.ts      # Confirmar, cancelar, listar, historico
+│   ├── AdminController.test.ts      # Clientes, pendentes, criar, editar, monitoramento
+│   └── PdfController.test.ts        # Upload, parsing, filtros, erros
 ├── services/
 │   ├── PdfParserService.test.ts     # Parsing de texto simulado
 │   ├── DataCleanerService.test.ts   # Limpeza, dedup, agrupamento, mesclagem
@@ -365,16 +458,19 @@ src/__tests__/
     └── firestore.ts                 # Mock do Firestore
 ```
 
-### Frontend
+### Frontend (69 testes, 6 suites)
 
 ```
 src/__tests__/
 ├── pages/
 │   ├── Login.test.tsx               # Login, recuperacao, tenant check
 │   ├── Register.test.tsx            # Registro, validacao, sucesso
-│   └── Upload.test.tsx              # Upload, drag/drop, erros, loading
+│   ├── Upload.test.tsx              # Upload, drag/drop, erros, loading
+│   ├── Revisao.test.tsx             # Contatos, edicao, remocao, modal, envio
+│   ├── Envio.test.tsx               # Progresso, status, cancelar, finalizado
+│   └── Admin.test.tsx               # Tabs, clientes, pendentes, criar, editar
 ├── setup.ts                         # Jest DOM setup
-└── testUtils.tsx                    # Providers para testes
+└── testUtils.tsx                    # Providers para testes (React Query + Theme + Router)
 ```
 
 ---

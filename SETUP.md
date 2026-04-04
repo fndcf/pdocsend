@@ -124,7 +124,8 @@ Document ID: (auto)
   mensagemTemplate: {
     nomeCorretor: "Nome do Corretor",
     nomeEmpresa: "nome da empresa",
-    cargo: "corretor"
+    cargo: "corretor",
+    textoPersonalizado: ""     // opcional - template customizado com variaveis {saudacao}, {nome}, {nomeCorretor}, {nomeEmpresa}, {cargo}, {operacao}
   },
   criadoEm: (timestamp)
 }
