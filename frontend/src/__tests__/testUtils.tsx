@@ -2,6 +2,7 @@ import React from "react";
 import { render, RenderOptions } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "styled-components";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { theme } from "@/styles/theme";
 
 // Mock Firebase
@@ -51,10 +52,18 @@ jest.mock("@/services/apiClient", () => ({
   },
 }));
 
+const testQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+  },
+});
+
 function AllProviders({ children }: { children: React.ReactNode }) {
   return (
     <MemoryRouter>
-      <ThemeProvider theme={theme}>{children}</ThemeProvider>
+      <QueryClientProvider client={testQueryClient}>
+        <ThemeProvider theme={theme}>{children}</ThemeProvider>
+      </QueryClientProvider>
     </MemoryRouter>
   );
 }

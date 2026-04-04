@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import styled from "styled-components";
 import {
   Send,
@@ -51,6 +52,7 @@ function getRevisaoState(locationState: unknown): LocationState | null {
 export function Revisao() {
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const state = getRevisaoState(location.state);
 
   const [contatos, setContatos] = useState<ContatoComStatus[]>(
@@ -126,6 +128,8 @@ export function Revisao() {
       );
 
       sessionStorage.removeItem("revisaoData");
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["lotes"] });
       navigate(`/envio/${resultado.loteId}`);
     } catch (err: unknown) {
       let message = "Erro ao confirmar envio";

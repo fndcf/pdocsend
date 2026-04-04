@@ -5,6 +5,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "styled-components";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { theme } from "@/styles/theme";
 
 jest.mock("@/config/firebase", () => ({
@@ -86,14 +87,20 @@ const mockMonitoramento = [
 
 import { Admin } from "@/pages/Admin";
 
-const renderAdmin = () =>
-  render(
+let queryClient: QueryClient;
+
+const renderAdmin = () => {
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
     <MemoryRouter>
-      <ThemeProvider theme={theme}>
-        <Admin />
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider theme={theme}>
+          <Admin />
+        </ThemeProvider>
+      </QueryClientProvider>
     </MemoryRouter>
   );
+};
 
 describe("Admin", () => {
   beforeEach(() => {

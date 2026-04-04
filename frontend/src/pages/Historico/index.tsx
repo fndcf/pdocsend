@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import {
@@ -15,6 +15,7 @@ import {
   LoadingState as LoadingStateUI,
   EmptyState,
 } from "@/components/ui";
+import { useQuery } from "@tanstack/react-query";
 import apiClient from "@/services/apiClient";
 import { useTenant } from "@/hooks/useTenant";
 import { TenantGuard } from "@/components/TenantGuard";
@@ -29,54 +30,37 @@ interface LotesResponse {
 export function Historico() {
   const navigate = useNavigate();
   const { tenantId, loading: tenantLoading, error: tenantError } = useTenant();
-  const [lotes, setLotes] = useState<Lote[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [allLotes, setAllLotes] = useState<Lote[]>([]);
+  const [cursor, setCursor] = useState<string | undefined>();
   const [hasMore, setHasMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState<string | undefined>();
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const fetchLotes = useCallback(async (cursor?: string) => {
-    if (!tenantId) return;
-
-    const isLoadMore = !!cursor;
-    if (isLoadMore) {
-      setLoadingMore(true);
-    } else {
-      setLoading(true);
-    }
-
-    try {
-      const params = new URLSearchParams();
-      if (cursor) params.set("cursor", cursor);
-
-      const result = await apiClient.get<LotesResponse>(
-        `/envios/lotes${params.toString() ? `?${params}` : ""}`
-      );
-
-      if (isLoadMore) {
-        setLotes((prev) => [...prev, ...result.lotes]);
-      } else {
-        setLotes(result.lotes);
-      }
+  const { isLoading: loading } = useQuery({
+    queryKey: ["lotes", tenantId],
+    queryFn: async () => {
+      const result = await apiClient.get<LotesResponse>("/envios/lotes");
+      setAllLotes(result.lotes);
       setHasMore(result.hasMore);
-      setNextCursor(result.nextCursor);
+      setCursor(result.nextCursor);
+      return result;
+    },
+    enabled: !!tenantId,
+  });
+
+  const handleLoadMore = useCallback(async () => {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const result = await apiClient.get<LotesResponse>(`/envios/lotes?cursor=${cursor}`);
+      setAllLotes((prev) => [...prev, ...result.lotes]);
+      setHasMore(result.hasMore);
+      setCursor(result.nextCursor);
     } catch {
-      // Erro silencioso - lista fica vazia
+      // silencioso
     } finally {
-      setLoading(false);
       setLoadingMore(false);
     }
-  }, [tenantId]);
-
-  useEffect(() => {
-    fetchLotes();
-  }, [fetchLotes]);
-
-  const handleLoadMore = useCallback(() => {
-    if (nextCursor && !loadingMore) {
-      fetchLotes(nextCursor);
-    }
-  }, [nextCursor, loadingMore, fetchLotes]);
+  }, [cursor, loadingMore]);
 
   const formatDate = (timestamp: unknown): string => {
     if (!timestamp) return "-";
@@ -112,7 +96,7 @@ export function Historico() {
             <Loader size={32} className="spin" />
             <p>Carregando...</p>
           </LoadingStateUI>
-        ) : lotes.length === 0 ? (
+        ) : allLotes.length === 0 ? (
           <EmptyState>
             <FileText size={48} color="#9ca3af" />
             <p>Nenhum envio realizado ainda.</p>
@@ -120,7 +104,7 @@ export function Historico() {
         ) : (
           <>
             <LotesList>
-              {lotes.map((lote) => (
+              {allLotes.map((lote) => (
                 <LoteCard
                   key={lote.id}
                   onClick={() => navigate(`/envio/${lote.id}`)}

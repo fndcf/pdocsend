@@ -5,6 +5,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "styled-components";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { theme } from "@/styles/theme";
 
 jest.mock("@/config/firebase", () => ({
@@ -100,12 +101,16 @@ jest.mock("react-router-dom", () => ({
 
 import { Revisao } from "@/pages/Revisao";
 
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
 const renderRevisao = () =>
   render(
     <MemoryRouter>
-      <ThemeProvider theme={theme}>
-        <Revisao />
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider theme={theme}>
+          <Revisao />
+        </ThemeProvider>
+      </QueryClientProvider>
     </MemoryRouter>
   );
 

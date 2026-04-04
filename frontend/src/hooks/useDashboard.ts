@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import apiClient from "@/services/apiClient";
 
 export interface DashboardData {
@@ -11,11 +11,10 @@ export interface DashboardData {
 }
 
 export function useDashboard() {
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const { data } = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => apiClient.get<DashboardData>("/envios/dashboard"),
+  });
 
-  useEffect(() => {
-    apiClient.get<DashboardData>("/envios/dashboard").then(setDashboard).catch(() => {});
-  }, []);
-
-  return dashboard;
+  return data ?? null;
 }

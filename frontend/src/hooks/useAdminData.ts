@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 import apiClient from "@/services/apiClient";
 
 interface Cliente {
@@ -36,43 +37,39 @@ interface MonitoramentoItem {
 type Tab = "clientes" | "pendentes" | "monitoramento";
 
 export function useAdminData(tab: Tab) {
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [pendentes, setPendentes] = useState<Pendente[]>([]);
-  const [monitoramento, setMonitoramento] = useState<MonitoramentoItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const queryClient = useQueryClient();
 
-  // Carregar contagem de pendentes ao abrir
-  useEffect(() => {
-    apiClient.get<Pendente[]>("/admin/pendentes").then(setPendentes).catch(() => {});
-  }, []);
+  const { data: clientes = [], isLoading: loadingClientes, error: errorClientes } = useQuery({
+    queryKey: ["admin", "clientes"],
+    queryFn: () => apiClient.get<Cliente[]>("/admin/clientes"),
+    enabled: tab === "clientes",
+  });
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      if (tab === "clientes") {
-        const data = await apiClient.get<Cliente[]>("/admin/clientes");
-        setClientes(data);
-      } else if (tab === "pendentes") {
-        const data = await apiClient.get<Pendente[]>("/admin/pendentes");
-        setPendentes(data);
-      } else {
-        const data = await apiClient.get<MonitoramentoItem[]>("/admin/monitoramento");
-        setMonitoramento(data);
-      }
-    } catch {
-      setError("Erro ao carregar dados");
-    } finally {
-      setLoading(false);
-    }
-  }, [tab]);
+  const { data: pendentes = [], isLoading: loadingPendentes, error: errorPendentes } = useQuery({
+    queryKey: ["admin", "pendentes"],
+    queryFn: () => apiClient.get<Pendente[]>("/admin/pendentes"),
+    // Sempre buscar pendentes (para o badge de contagem)
+  });
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const { data: monitoramento = [], isLoading: loadingMonitoramento, error: errorMonitoramento } = useQuery({
+    queryKey: ["admin", "monitoramento"],
+    queryFn: () => apiClient.get<MonitoramentoItem[]>("/admin/monitoramento"),
+    enabled: tab === "monitoramento",
+  });
 
-  return { clientes, pendentes, monitoramento, loading, error, reload: loadData };
+  const loading =
+    (tab === "clientes" && loadingClientes) ||
+    (tab === "pendentes" && loadingPendentes) ||
+    (tab === "monitoramento" && loadingMonitoramento);
+
+  const errorObj = tab === "clientes" ? errorClientes : tab === "pendentes" ? errorPendentes : errorMonitoramento;
+  const error = errorObj ? "Erro ao carregar dados" : "";
+
+  const reload = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["admin"] });
+  }, [queryClient]);
+
+  return { clientes, pendentes, monitoramento, loading, error, reload };
 }
 
 export type { Cliente, Pendente, MonitoramentoItem, Tab };

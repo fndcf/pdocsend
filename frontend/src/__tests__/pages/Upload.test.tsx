@@ -6,6 +6,7 @@ import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "styled-components";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { theme } from "@/styles/theme";
 
 jest.mock("@/config/firebase", () => ({
@@ -52,12 +53,16 @@ jest.mock("@/components/TenantGuard", () => ({
 
 import { Upload } from "@/pages/Upload";
 
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
 const renderUpload = () =>
   render(
     <MemoryRouter>
-      <ThemeProvider theme={theme}>
-        <Upload />
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider theme={theme}>
+          <Upload />
+        </ThemeProvider>
+      </QueryClientProvider>
     </MemoryRouter>
   );
 
