@@ -9,9 +9,9 @@ import pdfParserService from "../services/PdfParserService";
 import dataCleanerService from "../services/DataCleanerService";
 import deduplicacaoService from "../services/DeduplicacaoService";
 import messageBuilderService from "../services/MessageBuilderService";
-import { db } from "../config/firebase";
 import logger from "../utils/logger";
 import { processarPdfFormFieldsSchema } from "../schemas/pdfSchemas";
+import tenantRepository from "../repositories/TenantRepository";
 
 class PdfController {
   /**
@@ -99,9 +99,8 @@ class PdfController {
       );
 
       // 4. Buscar template do tenant
-      const tenantDoc = await db.collection("tenants").doc(tenantId).get();
-      const tenantData = tenantDoc.data();
-      const template = tenantData?.mensagemTemplate || {
+      const tenant = await tenantRepository.buscarPorId(tenantId);
+      const template = tenant?.mensagemTemplate || {
         nomeCorretor: "Corretor",
         nomeEmpresa: "Imobiliária",
         cargo: "corretor",

@@ -3,13 +3,14 @@
  */
 
 import { onRequest } from "firebase-functions/v2/https";
-import { db } from "../config/firebase";
-import { Timestamp } from "firebase-admin/firestore";
 import zApiService from "../services/ZApiService";
 import messageBuilderService from "../services/MessageBuilderService";
 import deduplicacaoService from "../services/DeduplicacaoService";
 import logger from "../utils/logger";
 import { Contato } from "../models/Imovel";
+import tenantRepository from "../repositories/TenantRepository";
+import loteRepository from "../repositories/LoteRepository";
+import envioRepository from "../repositories/EnvioRepository";
 
 interface EnvioPayload {
   tenantId: string;
@@ -27,101 +28,90 @@ export const processarEnvio = onRequest(
     const payload = req.body as EnvioPayload;
     const { tenantId, loteId, envioId } = payload;
 
-    const envioRef = db.doc(
-      `tenants/${tenantId}/lotes/${loteId}/envios/${envioId}`
-    );
-    const loteRef = db.doc(`tenants/${tenantId}/lotes/${loteId}`);
-
     try {
       // 1. Buscar dados do envio
-      const envioDoc = await envioRef.get();
-      if (!envioDoc.exists) {
+      const envioData = await envioRepository.buscarPorId(tenantId, loteId, envioId);
+      if (!envioData) {
         logger.error("Envio não encontrado", { tenantId, loteId, envioId });
         res.status(404).json({ error: "Envio não encontrado" });
         return;
       }
 
-      const envioData = envioDoc.data()!;
-
       // Já foi processado? (idempotência)
-      if (envioData.status === "enviado" || envioData.status === "erro" || envioData.status === "cancelado") {
+      const status = (envioData as Record<string, unknown>).status as string;
+      if (status === "enviado" || status === "erro" || status === "cancelado") {
         res.status(200).json({ status: "already_processed" });
         return;
       }
 
       // Verificar se o lote foi cancelado
-      const loteDoc = await loteRef.get();
-      const loteData = loteDoc.data();
-      if (loteData?.status === "cancelado") {
-        await envioRef.update({ status: "cancelado" });
-        await verificarFinalizacao(loteRef);
+      const loteData = await loteRepository.buscarPorId(tenantId, loteId);
+      if ((loteData as Record<string, unknown>)?.status === "cancelado") {
+        await envioRepository.atualizarStatus(tenantId, loteId, envioId, "cancelado");
+        await verificarFinalizacao(tenantId, loteId);
         logger.info("Envio pulado - lote cancelado", { tenantId, loteId, envioId });
         res.status(200).json({ status: "cancelled" });
         return;
       }
 
       // Verificar se este envio individual foi cancelado
-      if (envioData.status === "cancelado") {
+      if (status === "cancelado") {
         res.status(200).json({ status: "cancelled" });
         return;
       }
 
       // 2. Marcar como enviando
-      await envioRef.update({ status: "enviando" });
+      await envioRepository.atualizarStatus(tenantId, loteId, envioId, "enviando");
 
       // 3. Buscar template do tenant
-      const tenantDoc = await db.collection("tenants").doc(tenantId).get();
-      const tenantData = tenantDoc.data();
+      const tenant = await tenantRepository.buscarPorId(tenantId);
 
-      if (!tenantData?.zapiInstanceId || !tenantData?.zapiToken || !tenantData?.zapiClientToken) {
+      if (!tenant?.zapiInstanceId || !tenant?.zapiToken || !tenant?.zapiClientToken) {
         throw new Error("Z-API não configurada para este tenant");
       }
 
       // 4. Montar mensagem com saudação dinâmica
+      const data = envioData as Record<string, unknown>;
       const contato: Contato = {
-        nome: envioData.nome,
-        telefone: envioData.telefone,
-        imoveis: envioData.imoveis,
+        nome: data.nome as string,
+        telefone: data.telefone as string,
+        imoveis: data.imoveis as Contato["imoveis"],
       };
 
       const mensagem = messageBuilderService.montarMensagem(
         contato,
-        tenantData.mensagemTemplate
+        tenant.mensagemTemplate
       );
 
       // 5. Enviar via Z-API
       await zApiService.enviarMensagem(
-        tenantData.zapiInstanceId,
-        tenantData.zapiToken,
-        tenantData.zapiClientToken,
-        envioData.telefone,
+        tenant.zapiInstanceId,
+        tenant.zapiToken,
+        tenant.zapiClientToken,
+        contato.telefone,
         mensagem
       );
 
       // 6. Atualizar status para enviado
-      await envioRef.update({
-        status: "enviado",
-        mensagem,
-        enviadoEm: Timestamp.now(),
-      });
+      await envioRepository.marcarEnviado(tenantId, loteId, envioId, mensagem);
 
       // 7. Registrar imóveis como enviados (deduplicação)
       await deduplicacaoService.registrarEnviados(
         tenantId,
-        envioData.telefone,
-        envioData.imoveis,
+        contato.telefone,
+        contato.imoveis,
         loteId,
         envioId
       );
 
-      // 9. Verificar se lote finalizou
-      await verificarFinalizacao(loteRef);
+      // 8. Verificar se lote finalizou
+      await verificarFinalizacao(tenantId, loteId);
 
       logger.info("Envio processado com sucesso", {
         tenantId,
         loteId,
         envioId,
-        telefone: envioData.telefone,
+        telefone: contato.telefone,
       });
 
       res.status(200).json({ status: "sent" });
@@ -136,12 +126,8 @@ export const processarEnvio = onRequest(
       );
 
       // Atualizar status para erro
-      await envioRef.update({
-        status: "erro",
-        erro: errorMessage,
-      });
-
-      await verificarFinalizacao(loteRef);
+      await envioRepository.marcarErro(tenantId, loteId, envioId, errorMessage);
+      await verificarFinalizacao(tenantId, loteId);
 
       res.status(200).json({ status: "error", error: errorMessage });
     }
@@ -151,33 +137,19 @@ export const processarEnvio = onRequest(
 /**
  * Verifica se todos os envios do lote foram processados e finaliza
  */
-async function verificarFinalizacao(
-  loteRef: FirebaseFirestore.DocumentReference
-): Promise<void> {
-  const loteDoc = await loteRef.get();
-  const lote = loteDoc.data();
+async function verificarFinalizacao(tenantId: string, loteId: string): Promise<void> {
+  const lote = await loteRepository.buscarPorId(tenantId, loteId);
   if (!lote) return;
 
-  // Contar todos os envios por status
-  const enviosSnapshot = await loteRef.collection("envios").get();
-  let enviados = 0;
-  let erros = 0;
-  let cancelados = 0;
-  for (const doc of enviosSnapshot.docs) {
-    const status = doc.data().status;
-    if (status === "enviado") enviados++;
-    else if (status === "erro") erros++;
-    else if (status === "cancelado") cancelados++;
-  }
+  const contadores = await envioRepository.contarPorStatus(tenantId, loteId);
 
-  // Atualizar contadores do lote
-  await loteRef.update({ enviados, erros });
+  await loteRepository.atualizarContadores(tenantId, loteId, {
+    enviados: contadores.enviados,
+    erros: contadores.erros,
+  });
 
-  const processados = enviados + erros + cancelados;
-  if (processados >= lote.totalEnvios) {
-    await loteRef.update({
-      status: "finalizado",
-      finalizadoEm: Timestamp.now(),
-    });
+  const processados = contadores.enviados + contadores.erros + contadores.cancelados;
+  if (processados >= ((lote as Record<string, unknown>).totalEnvios as number)) {
+    await loteRepository.finalizar(tenantId, loteId, contadores);
   }
 }

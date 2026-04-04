@@ -6,11 +6,14 @@ import { Response } from "express";
 import { Timestamp } from "firebase-admin/firestore";
 import { AuthRequest } from "../middlewares/auth";
 import { ResponseHelper } from "../utils/responseHelper";
-import { db } from "../config/firebase";
 import messageBuilderService from "../services/MessageBuilderService";
 import filaEnvioService from "../services/FilaEnvioService";
 import logger from "../utils/logger";
 import { ContatoComStatus } from "../models/Imovel";
+import tenantRepository from "../repositories/TenantRepository";
+import loteRepository from "../repositories/LoteRepository";
+import envioRepository from "../repositories/EnvioRepository";
+import imovelEnviadoRepository from "../repositories/ImovelEnviadoRepository";
 
 class EnvioController {
   /**
@@ -31,29 +34,24 @@ class EnvioController {
       }
 
       // Buscar template do tenant
-      const tenantDoc = await db.collection("tenants").doc(tenantId).get();
-      const tenantData = tenantDoc.data();
+      const tenant = await tenantRepository.buscarPorId(tenantId);
 
-      if (!tenantData) {
+      if (!tenant) {
         ResponseHelper.badRequest(res, "Tenant não encontrado");
         return;
       }
 
       // Verificar rate limiting
-      const limiteDiario = tenantData.limiteDiario || 200;
+      const limiteDiario = tenant.limiteDiario || 200;
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
       const inicioHoje = Timestamp.fromDate(hoje);
 
-      const lotesHoje = await db
-        .collection(`tenants/${tenantId}/lotes`)
-        .where("criadoEm", ">=", inicioHoje)
-        .get();
+      const lotesHoje = await loteRepository.listarDesde(tenantId, inicioHoje);
 
       let enviadosHoje = 0;
-      for (const loteDoc of lotesHoje.docs) {
-        const lote = loteDoc.data();
-        enviadosHoje += lote.totalEnvios || 0;
+      for (const lote of lotesHoje) {
+        enviadosHoje += (lote as Record<string, unknown>).totalEnvios as number || 0;
       }
 
       if (enviadosHoje + contatosParaEnviar.length > limiteDiario) {
@@ -65,72 +63,51 @@ class EnvioController {
         return;
       }
 
-      const agora = Timestamp.now();
-
       // 1. Criar lote
-      const loteRef = db.collection(`tenants/${tenantId}/lotes`).doc();
-      await loteRef.set({
+      const loteId = await loteRepository.criar(tenantId, {
         totalEnvios: contatosParaEnviar.length,
-        enviados: 0,
-        erros: 0,
-        status: "em_andamento",
         pdfOrigem,
         criadoPor: uid,
-        criadoEm: agora,
-        finalizadoEm: null,
       });
 
       // 2. Criar documentos de envio
       const payloads = [];
 
       for (const contato of contatosParaEnviar) {
-        const envioRef = db
-          .collection(`tenants/${tenantId}/lotes/${loteRef.id}/envios`)
-          .doc();
-
         const nomeContato = messageBuilderService.montarNomeContato(contato);
 
-        await envioRef.set({
+        const envioId = await envioRepository.criar(tenantId, loteId, {
           telefone: contato.telefone,
           nome: contato.nome,
           nomeContato,
           imoveis: contato.imoveis,
-          mensagem: "", // Será gerada no momento do envio (saudação dinâmica)
-          status: "pendente",
-          erro: "",
-          enviadoEm: null,
-          criadoEm: agora,
         });
 
-        payloads.push({
-          tenantId,
-          loteId: loteRef.id,
-          envioId: envioRef.id,
-        });
+        payloads.push({ tenantId, loteId, envioId });
       }
 
       // 3. Criar tasks no Cloud Tasks
-      const functionUrl = `https://southamerica-east1-${tenantData.projectId || "pdocsend"}.cloudfunctions.net/processarEnvio`;
+      const functionUrl = `https://southamerica-east1-pdocsend.cloudfunctions.net/processarEnvio`;
 
       try {
         await filaEnvioService.criarTasks(payloads, functionUrl);
       } catch (error) {
-        logger.error("Erro ao criar tasks, atualizando lote", { loteId: loteRef.id }, error);
-        await loteRef.update({ status: "cancelado" });
+        logger.error("Erro ao criar tasks, atualizando lote", { loteId }, error);
+        await loteRepository.atualizarStatus(tenantId, loteId, "cancelado");
         ResponseHelper.internalError(res, "Erro ao agendar envios");
         return;
       }
 
       logger.info("Envio confirmado", {
         tenantId,
-        loteId: loteRef.id,
+        loteId,
         totalEnvios: contatosParaEnviar.length,
       });
 
       ResponseHelper.created(
         res,
         {
-          loteId: loteRef.id,
+          loteId,
           totalEnvios: contatosParaEnviar.length,
         },
         `${contatosParaEnviar.length} envio(s) agendado(s)`
@@ -148,18 +125,7 @@ class EnvioController {
   async listarLotes(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { tenantId } = req.user;
-
-      const snapshot = await db
-        .collection(`tenants/${tenantId}/lotes`)
-        .orderBy("criadoEm", "desc")
-        .limit(50)
-        .get();
-
-      const lotes = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
+      const lotes = await loteRepository.listarPorTenant(tenantId);
       ResponseHelper.success(res, lotes);
     } catch (error) {
       logger.error("Erro ao listar lotes", { tenantId: req.user?.tenantId }, error);
@@ -176,30 +142,16 @@ class EnvioController {
       const { tenantId } = req.user;
       const { id } = req.params;
 
-      const loteDoc = await db
-        .collection(`tenants/${tenantId}/lotes`)
-        .doc(id)
-        .get();
+      const lote = await loteRepository.buscarPorId(tenantId, id);
 
-      if (!loteDoc.exists) {
+      if (!lote) {
         ResponseHelper.notFound(res, "Lote não encontrado");
         return;
       }
 
-      const enviosSnapshot = await db
-        .collection(`tenants/${tenantId}/lotes/${id}/envios`)
-        .orderBy("criadoEm", "asc")
-        .get();
+      const envios = await envioRepository.listarPorLote(tenantId, id);
 
-      const envios = enviosSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      ResponseHelper.success(res, {
-        lote: { id: loteDoc.id, ...loteDoc.data() },
-        envios,
-      });
+      ResponseHelper.success(res, { lote, envios });
     } catch (error) {
       logger.error("Erro ao buscar detalhes do lote", { loteId: req.params.id }, error);
       ResponseHelper.internalError(res, "Erro ao buscar detalhes do lote");
@@ -215,53 +167,24 @@ class EnvioController {
       const { tenantId } = req.user;
       const { id } = req.params;
 
-      const loteRef = db.collection(`tenants/${tenantId}/lotes`).doc(id);
-      const loteDoc = await loteRef.get();
+      const lote = await loteRepository.buscarPorId(tenantId, id);
 
-      if (!loteDoc.exists) {
+      if (!lote) {
         ResponseHelper.notFound(res, "Lote não encontrado");
         return;
       }
 
-      const loteData = loteDoc.data();
-      if (loteData?.status !== "em_andamento") {
+      if ((lote as Record<string, unknown>).status !== "em_andamento") {
         ResponseHelper.badRequest(res, "Lote não está em andamento");
         return;
       }
 
       // Marcar todos os envios pendentes como cancelados
-      const enviosSnapshot = await db
-        .collection(`tenants/${tenantId}/lotes/${id}/envios`)
-        .where("status", "in", ["pendente", "enviando"])
-        .get();
+      const cancelados = await envioRepository.cancelarPendentes(tenantId, id);
 
-      const batch = db.batch();
-      let cancelados = 0;
-      for (const envioDoc of enviosSnapshot.docs) {
-        batch.update(envioDoc.ref, { status: "cancelado" });
-        cancelados++;
-      }
-      await batch.commit();
-
-      // Recontar totais
-      const todosEnvios = await db
-        .collection(`tenants/${tenantId}/lotes/${id}/envios`)
-        .get();
-
-      let enviados = 0;
-      let erros = 0;
-      for (const doc of todosEnvios.docs) {
-        const status = doc.data().status;
-        if (status === "enviado") enviados++;
-        else if (status === "erro") erros++;
-      }
-
-      await loteRef.update({
-        status: "finalizado",
-        enviados,
-        erros,
-        finalizadoEm: Timestamp.now(),
-      });
+      // Recontar totais e finalizar
+      const contadores = await envioRepository.contarPorStatus(tenantId, id);
+      await loteRepository.finalizar(tenantId, id, contadores);
 
       logger.info("Lote cancelado", { tenantId, loteId: id, cancelados });
 
@@ -281,50 +204,31 @@ class EnvioController {
       const { tenantId } = req.user;
       const { id, envioId } = req.params;
 
-      const envioRef = db
-        .collection(`tenants/${tenantId}/lotes/${id}/envios`)
-        .doc(envioId);
-      const envioDoc = await envioRef.get();
+      const envio = await envioRepository.buscarPorId(tenantId, id, envioId);
 
-      if (!envioDoc.exists) {
+      if (!envio) {
         ResponseHelper.notFound(res, "Envio não encontrado");
         return;
       }
 
-      const envioData = envioDoc.data();
-      if (envioData?.status !== "pendente") {
+      if ((envio as Record<string, unknown>).status !== "pendente") {
         ResponseHelper.badRequest(res, "Apenas envios pendentes podem ser cancelados");
         return;
       }
 
-      await envioRef.update({ status: "cancelado" });
+      await envioRepository.atualizarStatus(tenantId, id, envioId, "cancelado");
 
-      // Verificar se todos os envios foram processados para finalizar o lote
-      const loteRef = db.collection(`tenants/${tenantId}/lotes`).doc(id);
-      const enviosSnapshot = await db
-        .collection(`tenants/${tenantId}/lotes/${id}/envios`)
-        .get();
+      // Recontar e verificar se lote finalizou
+      const contadores = await envioRepository.contarPorStatus(tenantId, id);
+      await loteRepository.atualizarContadores(tenantId, id, {
+        enviados: contadores.enviados,
+        erros: contadores.erros,
+      });
 
-      let enviados = 0;
-      let erros = 0;
-      let cancelados = 0;
-      for (const doc of enviosSnapshot.docs) {
-        const status = doc.data().status;
-        if (status === "enviado") enviados++;
-        else if (status === "erro") erros++;
-        else if (status === "cancelado") cancelados++;
-      }
-
-      await loteRef.update({ enviados, erros });
-
-      const loteDoc = await loteRef.get();
-      const loteData = loteDoc.data();
-      const processados = enviados + erros + cancelados;
-      if (loteData && processados >= loteData.totalEnvios) {
-        await loteRef.update({
-          status: "finalizado",
-          finalizadoEm: Timestamp.now(),
-        });
+      const lote = await loteRepository.buscarPorId(tenantId, id);
+      const processados = contadores.enviados + contadores.erros + contadores.cancelados;
+      if (lote && processados >= ((lote as Record<string, unknown>).totalEnvios as number)) {
+        await loteRepository.finalizar(tenantId, id, contadores);
       }
 
       logger.info("Envio individual cancelado", { tenantId, loteId: id, envioId });
@@ -345,34 +249,24 @@ class EnvioController {
       const { tenantId } = req.user;
       const { telefone } = req.params;
 
-      // Buscar todos os imóveis enviados para este telefone
-      const imoveisSnapshot = await db
-        .collection(`tenants/${tenantId}/imoveis_enviados`)
-        .where("telefone", "==", telefone)
-        .get();
+      const imoveis = await imovelEnviadoRepository.buscarPorTelefone(tenantId, telefone);
 
-      if (imoveisSnapshot.empty) {
+      if (imoveis.length === 0) {
         ResponseHelper.success(res, { envios: [], total: 0 });
         return;
       }
 
       // Agrupar por loteId para buscar detalhes
       const loteIds = new Set<string>();
-      const imoveis = imoveisSnapshot.docs.map((doc) => {
-        const data = doc.data();
-        loteIds.add(data.loteId);
-        return { id: doc.id, ...data };
-      });
+      for (const imovel of imoveis) {
+        loteIds.add((imovel as Record<string, unknown>).loteId as string);
+      }
 
-      // Buscar detalhes dos lotes
       const lotes: Record<string, unknown> = {};
       for (const loteId of loteIds) {
-        const loteDoc = await db
-          .collection(`tenants/${tenantId}/lotes`)
-          .doc(loteId)
-          .get();
-        if (loteDoc.exists) {
-          lotes[loteId] = { id: loteDoc.id, ...loteDoc.data() };
+        const lote = await loteRepository.buscarPorId(tenantId, loteId);
+        if (lote) {
+          lotes[loteId] = lote;
         }
       }
 
@@ -409,8 +303,8 @@ class EnvioController {
       }
 
       // Buscar limite diário do tenant
-      const tenantDoc = await db.collection("tenants").doc(tenantId).get();
-      const limiteDiario = tenantDoc.data()?.limiteDiario || 200;
+      const tenant = await tenantRepository.buscarPorId(tenantId);
+      const limiteDiario = tenant?.limiteDiario || 200;
 
       // Início de hoje e início do mês
       const hoje = new Date();
@@ -421,31 +315,25 @@ class EnvioController {
       const inicioMesTs = Timestamp.fromDate(inicioMes);
 
       // Buscar lotes de hoje
-      const lotesHoje = await db
-        .collection(`tenants/${tenantId}/lotes`)
-        .where("criadoEm", ">=", inicioHoje)
-        .get();
+      const lotesHoje = await loteRepository.listarDesde(tenantId, inicioHoje);
 
       let enviadosHoje = 0;
-      for (const doc of lotesHoje.docs) {
-        enviadosHoje += doc.data().enviados || 0;
+      for (const lote of lotesHoje) {
+        enviadosHoje += (lote as Record<string, unknown>).enviados as number || 0;
       }
 
       // Buscar lotes do mês
-      const lotesMes = await db
-        .collection(`tenants/${tenantId}/lotes`)
-        .where("criadoEm", ">=", inicioMesTs)
-        .get();
+      const lotesMes = await loteRepository.listarDesde(tenantId, inicioMesTs);
 
       let enviadosMes = 0;
       let errosMes = 0;
       let totalPdfs = 0;
       let ultimoEnvio: unknown = null;
 
-      for (const doc of lotesMes.docs) {
-        const data = doc.data();
-        enviadosMes += data.enviados || 0;
-        errosMes += data.erros || 0;
+      for (const lote of lotesMes) {
+        const data = lote as Record<string, unknown>;
+        enviadosMes += data.enviados as number || 0;
+        errosMes += data.erros as number || 0;
         totalPdfs++;
         if (!ultimoEnvio || (data.criadoEm && data.criadoEm > (ultimoEnvio as FirebaseFirestore.Timestamp))) {
           ultimoEnvio = data.criadoEm;

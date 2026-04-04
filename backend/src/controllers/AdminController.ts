@@ -3,11 +3,13 @@
  */
 
 import { Response } from "express";
-import { Timestamp } from "firebase-admin/firestore";
 import { AuthRequest } from "../middlewares/auth";
 import { ResponseHelper } from "../utils/responseHelper";
-import { db, auth } from "../config/firebase";
+import { auth } from "../config/firebase";
 import logger from "../utils/logger";
+import tenantRepository from "../repositories/TenantRepository";
+import userRepository from "../repositories/UserRepository";
+import loteRepository from "../repositories/LoteRepository";
 
 class AdminController {
   /**
@@ -16,34 +18,18 @@ class AdminController {
    */
   async listarClientes(_req: AuthRequest, res: Response): Promise<void> {
     try {
-      const tenantsSnapshot = await db.collection("tenants").get();
-      const usersSnapshot = await db.collection("users").where("role", "!=", "superadmin").get();
+      const tenants = await tenantRepository.listarTodos();
+      const usersByTenant = await userRepository.listarPorTenant();
 
-      const usersByTenant: Record<string, Array<{ uid: string; email: string; nome: string; role: string }>> = {};
-      for (const userDoc of usersSnapshot.docs) {
-        const data = userDoc.data();
-        if (!data.tenantId) continue;
-        if (!usersByTenant[data.tenantId]) usersByTenant[data.tenantId] = [];
-        usersByTenant[data.tenantId].push({
-          uid: userDoc.id,
-          email: data.email,
-          nome: data.nome,
-          role: data.role,
-        });
-      }
-
-      const clientes = tenantsSnapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          nome: data.nome,
-          mensagemTemplate: data.mensagemTemplate,
-          zapiInstanceId: data.zapiInstanceId ? "***configurado***" : "",
-          limiteDiario: data.limiteDiario || 200,
-          usuarios: usersByTenant[doc.id] || [],
-          criadoEm: data.criadoEm,
-        };
-      });
+      const clientes = tenants.map((tenant) => ({
+        id: tenant.id,
+        nome: tenant.nome,
+        mensagemTemplate: tenant.mensagemTemplate,
+        zapiInstanceId: tenant.zapiInstanceId ? "***configurado***" : "",
+        limiteDiario: tenant.limiteDiario || 200,
+        usuarios: usersByTenant[tenant.id] || [],
+        criadoEm: tenant.criadoEm,
+      }));
 
       ResponseHelper.success(res, clientes);
     } catch (error) {
@@ -58,22 +44,12 @@ class AdminController {
    */
   async listarPendentes(_req: AuthRequest, res: Response): Promise<void> {
     try {
-      // Buscar todos os usuários do Firebase Auth
       const listResult = await auth.listUsers(100);
+      const usersMap = await userRepository.listarTodos();
 
-      // Buscar documentos de users no Firestore
-      const usersSnapshot = await db.collection("users").get();
-      const usersMap = new Map<string, { tenantId: string; role: string }>();
-      for (const doc of usersSnapshot.docs) {
-        const data = doc.data();
-        usersMap.set(doc.id, { tenantId: data.tenantId, role: data.role });
-      }
-
-      // Filtrar usuários sem tenant (e que não são superadmin)
       const pendentes = listResult.users
         .filter((user) => {
           const userData = usersMap.get(user.uid);
-          // Sem documento no Firestore ou sem tenant vinculado
           return !userData || (!userData.tenantId && userData.role !== "superadmin");
         })
         .map((user) => ({
@@ -117,8 +93,7 @@ class AdminController {
       }
 
       // Criar tenant
-      const tenantRef = db.collection("tenants").doc();
-      await tenantRef.set({
+      const tenantId = await tenantRepository.criar({
         nome,
         zapiInstanceId,
         zapiToken,
@@ -129,29 +104,19 @@ class AdminController {
           cargo: cargo || "corretor",
         },
         limiteDiario,
-        criadoEm: Timestamp.now(),
       });
 
       // Vincular usuário ao tenant
-      await db.collection("users").doc(uid).set({
+      await userRepository.criar(uid, {
         email: userRecord.email || "",
         nome: nomeCorretor,
-        tenantId: tenantRef.id,
+        tenantId,
         role: "admin",
-        criadoEm: Timestamp.now(),
       });
 
-      logger.info("Cliente criado via admin", {
-        tenantId: tenantRef.id,
-        uid,
-        nome,
-      });
+      logger.info("Cliente criado via admin", { tenantId, uid, nome });
 
-      ResponseHelper.created(res, {
-        tenantId: tenantRef.id,
-        uid,
-        nome,
-      }, "Cliente configurado com sucesso");
+      ResponseHelper.created(res, { tenantId, uid, nome }, "Cliente configurado com sucesso");
     } catch (error) {
       logger.error("Erro ao criar cliente", {}, error);
       ResponseHelper.internalError(res, "Erro ao criar cliente");
@@ -167,10 +132,9 @@ class AdminController {
       const { id } = req.params;
       const { nome, nomeCorretor, nomeEmpresa, cargo, zapiInstanceId, zapiToken, zapiClientToken, limiteDiario } = req.body;
 
-      const tenantRef = db.collection("tenants").doc(id);
-      const tenantDoc = await tenantRef.get();
+      const tenant = await tenantRepository.buscarPorId(id);
 
-      if (!tenantDoc.exists) {
+      if (!tenant) {
         ResponseHelper.notFound(res, "Cliente não encontrado");
         return;
       }
@@ -182,7 +146,7 @@ class AdminController {
       if (zapiClientToken) updateData.zapiClientToken = zapiClientToken;
       if (limiteDiario) updateData.limiteDiario = limiteDiario;
       if (nomeCorretor || nomeEmpresa || cargo) {
-        const currentTemplate = tenantDoc.data()?.mensagemTemplate || {};
+        const currentTemplate = tenant.mensagemTemplate || {};
         updateData.mensagemTemplate = {
           nomeCorretor: nomeCorretor || currentTemplate.nomeCorretor,
           nomeEmpresa: nomeEmpresa || currentTemplate.nomeEmpresa,
@@ -190,7 +154,7 @@ class AdminController {
         };
       }
 
-      await tenantRef.update(updateData);
+      await tenantRepository.atualizar(id, updateData);
 
       logger.info("Cliente atualizado", { tenantId: id });
 
@@ -207,26 +171,21 @@ class AdminController {
    */
   async monitoramento(_req: AuthRequest, res: Response): Promise<void> {
     try {
-      const tenantsSnapshot = await db.collection("tenants").get();
+      const tenants = await tenantRepository.listarTodos();
       const stats = [];
 
-      for (const tenantDoc of tenantsSnapshot.docs) {
-        const tenantData = tenantDoc.data();
-        const lotesSnapshot = await db
-          .collection(`tenants/${tenantDoc.id}/lotes`)
-          .orderBy("criadoEm", "desc")
-          .limit(5)
-          .get();
+      for (const tenant of tenants) {
+        const lotes = await loteRepository.listarRecentes(tenant.id, 5);
 
         let totalEnviados = 0;
         let totalErros = 0;
 
-        const lotes = lotesSnapshot.docs.map((loteDoc) => {
-          const data = loteDoc.data();
-          totalEnviados += data.enviados || 0;
-          totalErros += data.erros || 0;
+        const lotesFormatados = lotes.map((lote) => {
+          const data = lote as Record<string, unknown>;
+          totalEnviados += data.enviados as number || 0;
+          totalErros += data.erros as number || 0;
           return {
-            id: loteDoc.id,
+            id: lote.id,
             pdfOrigem: data.pdfOrigem,
             totalEnvios: data.totalEnvios,
             enviados: data.enviados,
@@ -237,12 +196,12 @@ class AdminController {
         });
 
         stats.push({
-          tenantId: tenantDoc.id,
-          nome: tenantData.nome,
-          corretor: tenantData.mensagemTemplate?.nomeCorretor || "",
+          tenantId: tenant.id,
+          nome: tenant.nome,
+          corretor: tenant.mensagemTemplate?.nomeCorretor || "",
           totalEnviados,
           totalErros,
-          lotesRecentes: lotes,
+          lotesRecentes: lotesFormatados,
         });
       }
 

@@ -1,13 +1,12 @@
 /**
- * Service para deduplicação de imóveis entre PDFs usando Firestore
+ * Service para deduplicação de imóveis entre PDFs
  */
 
-import { db } from "../config/firebase";
-import { Timestamp } from "firebase-admin/firestore";
 import { Contato, Imovel } from "../models/Imovel";
 import { ContatoComStatus } from "../models/Imovel";
 import { gerarHashImovel } from "../utils/textUtils";
 import logger from "../utils/logger";
+import imovelEnviadoRepository from "../repositories/ImovelEnviadoRepository";
 
 class DeduplicacaoService {
   /**
@@ -34,7 +33,7 @@ class DeduplicacaoService {
     }
 
     // Buscar quais hashes já existem no Firestore
-    const hashesExistentes = await this.buscarHashesExistentes(
+    const hashesExistentes = await imovelEnviadoRepository.buscarHashesExistentes(
       tenantId,
       [...todosHashes]
     );
@@ -98,33 +97,6 @@ class DeduplicacaoService {
   }
 
   /**
-   * Busca quais hashes já existem na collection imoveis_enviados
-   */
-  private async buscarHashesExistentes(
-    tenantId: string,
-    hashes: string[]
-  ): Promise<Set<string>> {
-    const existentes = new Set<string>();
-    if (hashes.length === 0) return existentes;
-
-    // Firestore limita IN queries a 30 itens
-    const BATCH_SIZE = 30;
-    for (let i = 0; i < hashes.length; i += BATCH_SIZE) {
-      const batch = hashes.slice(i, i + BATCH_SIZE);
-      const snapshot = await db
-        .collection(`tenants/${tenantId}/imoveis_enviados`)
-        .where("__name__", "in", batch)
-        .get();
-
-      for (const doc of snapshot.docs) {
-        existentes.add(doc.id);
-      }
-    }
-
-    return existentes;
-  }
-
-  /**
    * Registra imóveis como enviados após envio bem-sucedido
    */
   async registrarEnviados(
@@ -134,35 +106,13 @@ class DeduplicacaoService {
     loteId: string,
     envioId: string
   ): Promise<void> {
-    const batch = db.batch();
-    const agora = Timestamp.now();
-
-    for (const imovel of imoveis) {
-      const hash = gerarHashImovel(
-        telefone,
-        imovel.edificio,
-        imovel.endereco,
-        imovel.numero,
-        imovel.apartamento
-      );
-
-      const ref = db
-        .collection(`tenants/${tenantId}/imoveis_enviados`)
-        .doc(hash);
-
-      batch.set(ref, {
-        telefone,
-        edificio: imovel.edificio,
-        endereco: imovel.endereco,
-        numero: imovel.numero,
-        apartamento: imovel.apartamento,
-        loteId,
-        envioId,
-        enviadoEm: agora,
-      });
-    }
-
-    await batch.commit();
+    await imovelEnviadoRepository.registrarEnviados(
+      tenantId,
+      telefone,
+      imoveis,
+      loteId,
+      envioId
+    );
   }
 }
 
