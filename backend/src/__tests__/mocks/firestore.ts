@@ -60,6 +60,17 @@ export function createMockFirestore() {
       update: jest.fn(),
       commit: jest.fn(async () => {}),
     })),
+    runTransaction: jest.fn(async (fn: (transaction: unknown) => Promise<unknown>) => {
+      const transaction = {
+        get: jest.fn(async () => ({
+          empty: true,
+          docs: [] as Array<{ id: string; data: () => unknown }>,
+        })),
+        set: jest.fn(),
+        update: jest.fn(),
+      };
+      return fn(transaction);
+    }),
     _docs: docs,
     _setDoc: (path: string, data: Record<string, unknown>) => {
       docs[path] = data;

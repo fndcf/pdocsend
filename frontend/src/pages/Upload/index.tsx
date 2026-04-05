@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
 import styled from "styled-components";
 import { Upload as UploadIcon, FileText, AlertCircle, LogOut, History, Send, Calendar, FileBarChart, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,32 +24,20 @@ interface ProcessarResponse {
 
 export function Upload() {
   const [filtroOperacao, setFiltroOperacao] = useState<"todos" | "venda" | "locacao">("todos");
-  const [loading, setLoading] = useState(false);
   const { file, fileInputRef, error, setError, handleFileChange, handleDrop } = useFileUpload();
   const dashboard = useDashboard();
   const { logout } = useAuth();
   const { loading: tenantLoading, error: tenantError, isSuperAdmin } = useTenant();
   const navigate = useNavigate();
 
-  const handleProcessar = async () => {
-    if (!file) return;
-
-    setLoading(true);
-    setError("");
-
-    try {
-      const resultado = await apiClient.upload<ProcessarResponse>(
-        "/pdf/processar",
-        file,
-        { filtroOperacao }
-      );
-
-      // Persistir no sessionStorage para sobreviver ao refresh
+  const processarMutation = useMutation({
+    mutationFn: (uploadFile: File) =>
+      apiClient.upload<ProcessarResponse>("/pdf/processar", uploadFile, { filtroOperacao }),
+    onSuccess: (resultado) => {
       sessionStorage.setItem("revisaoData", JSON.stringify(resultado));
-      navigate("/revisao", {
-        state: resultado,
-      });
-    } catch (err: unknown) {
+      navigate("/revisao", { state: resultado });
+    },
+    onError: (err: unknown) => {
       let message = "Erro ao processar PDF";
       if (err instanceof Error) {
         if (err.message.includes("500")) {
@@ -64,10 +53,16 @@ export function Upload() {
         }
       }
       setError(message);
-    } finally {
-      setLoading(false);
-    }
+    },
+  });
+
+  const handleProcessar = () => {
+    if (!file) return;
+    setError("");
+    processarMutation.mutate(file);
   };
+
+  const loading = processarMutation.isPending;
 
   if (loading) {
     return (

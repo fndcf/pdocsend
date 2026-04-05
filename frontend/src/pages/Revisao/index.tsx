@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import styled from "styled-components";
 import {
   Send,
@@ -58,7 +58,6 @@ export function Revisao() {
   const [contatos, setContatos] = useState<ContatoComStatus[]>(
     state?.contatos || []
   );
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
@@ -112,26 +111,19 @@ export function Revisao() {
     }
   }, [confirmRemoveIndex]);
 
-  const handleConfirmarEnvio = async () => {
-    if (novos.length === 0) return;
-
-    setLoading(true);
-    setError("");
-
-    try {
-      const resultado = await apiClient.post<{ loteId: string }>(
-        "/envios/confirmar",
-        {
-          contatos: novos,
-          pdfOrigem: state.pdfOrigem,
-        }
-      );
-
+  const confirmarMutation = useMutation({
+    mutationFn: () =>
+      apiClient.post<{ loteId: string }>("/envios/confirmar", {
+        contatos: novos,
+        pdfOrigem: state.pdfOrigem,
+      }),
+    onSuccess: (resultado) => {
       sessionStorage.removeItem("revisaoData");
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["lotes"] });
       navigate(`/envio/${resultado.loteId}`);
-    } catch (err: unknown) {
+    },
+    onError: (err: unknown) => {
       let message = "Erro ao confirmar envio";
       const axiosErr = err as { response?: { data?: { error?: string } } };
       if (axiosErr.response?.data?.error) {
@@ -140,10 +132,16 @@ export function Revisao() {
         message = err.message;
       }
       setError(message);
-    } finally {
-      setLoading(false);
-    }
+    },
+  });
+
+  const handleConfirmarEnvio = () => {
+    if (novos.length === 0) return;
+    setError("");
+    confirmarMutation.mutate();
   };
+
+  const loading = confirmarMutation.isPending;
 
   return (
     <Container>

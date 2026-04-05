@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
 import { Login } from "./pages/Login";
@@ -7,7 +8,11 @@ import { Revisao } from "./pages/Revisao";
 import { Envio } from "./pages/Envio";
 import { Historico } from "./pages/Historico";
 import { HistoricoContato } from "./pages/HistoricoContato";
-import { Admin } from "./pages/Admin";
+import { LoadingState } from "./components/ui";
+
+const Admin = lazy(() =>
+  import("./pages/Admin").then((m) => ({ default: m.Admin }))
+);
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -70,7 +75,9 @@ function App() {
         path="/admin"
         element={
           <PrivateRoute>
-            <Admin />
+            <Suspense fallback={<LoadingState>Carregando...</LoadingState>}>
+              <Admin />
+            </Suspense>
           </PrivateRoute>
         }
       />

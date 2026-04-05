@@ -1,5 +1,6 @@
 import { useCallback, memo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
 import styled from "styled-components";
 import {
   CheckCircle,
@@ -35,22 +36,26 @@ export function Envio() {
   const { lote, loteNotFound, envios, progresso, finalizado, cancelados, pendentes } =
     useLoteProgress(tenantId, loteId);
 
-  const handleCancelarLote = useCallback(async () => {
-    if (!confirm("Cancelar envio? Mensagens já enviadas não serão desfeitas.")) return;
-    try {
-      await apiClient.post(`/envios/lotes/${loteId}/cancelar`, {});
-    } catch {
-      alert("Erro ao cancelar envio. Tente novamente.");
-    }
-  }, [loteId]);
+  const cancelarLoteMutation = useMutation({
+    mutationFn: () => apiClient.post(`/envios/lotes/${loteId}/cancelar`, {}),
+    onError: () => alert("Erro ao cancelar envio. Tente novamente."),
+  });
 
-  const handleCancelarEnvio = useCallback(async (envioId: string) => {
-    try {
-      await apiClient.post(`/envios/lotes/${loteId}/envios/${envioId}/cancelar`, {});
-    } catch {
-      alert("Erro ao cancelar envio");
-    }
-  }, [loteId]);
+  const cancelarEnvioMutation = useMutation({
+    mutationFn: (envioId: string) =>
+      apiClient.post(`/envios/lotes/${loteId}/envios/${envioId}/cancelar`, {}),
+    onError: () => alert("Erro ao cancelar envio"),
+  });
+
+  const handleCancelarLote = useCallback(() => {
+    if (!confirm("Cancelar envio? Mensagens já enviadas não serão desfeitas.")) return;
+    cancelarLoteMutation.mutate();
+  }, [cancelarLoteMutation]);
+
+  const handleCancelarEnvio = useCallback(
+    (envioId: string) => cancelarEnvioMutation.mutate(envioId),
+    [cancelarEnvioMutation]
+  );
 
   if (tenantLoading || (!lote && !loteNotFound)) {
     return (

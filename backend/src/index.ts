@@ -5,9 +5,13 @@ import rateLimit from "express-rate-limit";
 import { onRequest } from "firebase-functions/v2/https";
 import routes from "./routes";
 import { errorHandler } from "./middlewares/errorHandler";
+import { requestIdMiddleware } from "./middlewares/requestId";
 import logger from "./utils/logger";
 
 const app = express();
+
+// Request ID
+app.use(requestIdMiddleware);
 
 // Segurança
 app.use(helmet());

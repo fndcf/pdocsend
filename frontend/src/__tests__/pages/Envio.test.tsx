@@ -6,6 +6,7 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "styled-components";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { theme } from "@/styles/theme";
 
 // Mock Firestore onSnapshot
@@ -118,14 +119,20 @@ jest.mock("@/components/TenantGuard", () => ({
 
 import { Envio } from "@/pages/Envio";
 
+const testQueryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
+
 const renderEnvio = () =>
   render(
     <MemoryRouter initialEntries={["/envio/lote-123"]}>
-      <ThemeProvider theme={theme}>
-        <Routes>
-          <Route path="/envio/:loteId" element={<Envio />} />
-        </Routes>
-      </ThemeProvider>
+      <QueryClientProvider client={testQueryClient}>
+        <ThemeProvider theme={theme}>
+          <Routes>
+            <Route path="/envio/:loteId" element={<Envio />} />
+          </Routes>
+        </ThemeProvider>
+      </QueryClientProvider>
     </MemoryRouter>
   );
 

@@ -14,6 +14,7 @@ import tenantRepository from "../repositories/TenantRepository";
 import loteRepository from "../repositories/LoteRepository";
 import envioRepository from "../repositories/EnvioRepository";
 import imovelEnviadoRepository from "../repositories/ImovelEnviadoRepository";
+import { db } from "../config/firebase";
 
 class EnvioController {
   /**
@@ -41,34 +42,50 @@ class EnvioController {
         return;
       }
 
-      // Verificar rate limiting
+      // Verificar limite diário e criar lote em transação (atomicidade)
       const limiteDiario = tenant.limiteDiario || 200;
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
       const inicioHoje = Timestamp.fromDate(hoje);
 
-      const lotesHoje = await loteRepository.listarDesde(tenantId, inicioHoje);
-
-      let enviadosHoje = 0;
-      for (const lote of lotesHoje) {
-        enviadosHoje += (lote as Record<string, unknown>).totalEnvios as number || 0;
-      }
-
-      if (enviadosHoje + contatosParaEnviar.length > limiteDiario) {
-        const restante = Math.max(0, limiteDiario - enviadosHoje);
-        ResponseHelper.badRequest(
-          res,
-          `Limite diário de ${limiteDiario} mensagens atingido. Você já agendou ${enviadosHoje} hoje. Restam ${restante} envios disponíveis.`
+      const loteResult = await db.runTransaction<{ error: string } | { loteId: string }>(async (transaction) => {
+        const lotesSnapshot = await transaction.get(
+          db.collection(`tenants/${tenantId}/lotes`)
+            .where("criadoEm", ">=", inicioHoje)
         );
+
+        let enviadosHoje = 0;
+        for (const doc of lotesSnapshot.docs) {
+          enviadosHoje += (doc.data().totalEnvios as number) || 0;
+        }
+
+        if (enviadosHoje + contatosParaEnviar.length > limiteDiario) {
+          const restante = Math.max(0, limiteDiario - enviadosHoje);
+          return { error: `Limite diário de ${limiteDiario} mensagens atingido. Você já agendou ${enviadosHoje} hoje. Restam ${restante} envios disponíveis.` };
+        }
+
+        // Criar lote dentro da transação
+        const loteRef = db.collection(`tenants/${tenantId}/lotes`).doc();
+        transaction.set(loteRef, {
+          totalEnvios: contatosParaEnviar.length,
+          pdfOrigem,
+          criadoPor: uid,
+          enviados: 0,
+          erros: 0,
+          status: "em_andamento",
+          criadoEm: Timestamp.now(),
+          finalizadoEm: null,
+        });
+
+        return { loteId: loteRef.id };
+      });
+
+      if ("error" in loteResult) {
+        ResponseHelper.badRequest(res, loteResult.error);
         return;
       }
 
-      // 1. Criar lote
-      const loteId = await loteRepository.criar(tenantId, {
-        totalEnvios: contatosParaEnviar.length,
-        pdfOrigem,
-        criadoPor: uid,
-      });
+      const { loteId } = loteResult;
 
       // 2. Criar documentos de envio
       const payloads = [];

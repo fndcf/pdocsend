@@ -2,11 +2,56 @@ type LogLevel = "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
 
 const isProduction = process.env.NODE_ENV === "production";
 
+const SENSITIVE_KEYS = ["telefone", "nome", "nomeContato", "email"];
+
+function maskValue(key: string, value: unknown): unknown {
+  if (typeof value !== "string" || !value) return value;
+
+  if (key === "telefone") {
+    // 5511999001818 → 55119****1818
+    return value.length >= 8
+      ? value.slice(0, 5) + "****" + value.slice(-4)
+      : "****";
+  }
+
+  if (key === "nome" || key === "nomeContato") {
+    // "Denise Silva" → "Den***"
+    return value.length > 3 ? value.slice(0, 3) + "***" : "***";
+  }
+
+  if (key === "email") {
+    // "user@email.com" → "us***@email.com"
+    const atIndex = value.indexOf("@");
+    if (atIndex > 2) {
+      return value.slice(0, 2) + "***" + value.slice(atIndex);
+    }
+    return "***" + value.slice(atIndex);
+  }
+
+  return value;
+}
+
+function sanitizeContext(context?: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (!context || !isProduction) return context;
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(context)) {
+    if (SENSITIVE_KEYS.includes(key)) {
+      sanitized[key] = maskValue(key, value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
 function log(level: LogLevel, message: string, context?: Record<string, unknown>) {
+  const safeContext = sanitizeContext(context);
+
   const entry = {
     severity: level,
     message,
-    ...context,
+    ...safeContext,
     timestamp: new Date().toISOString(),
   };
 

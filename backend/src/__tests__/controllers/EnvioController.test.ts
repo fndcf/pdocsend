@@ -52,6 +52,14 @@ jest.mock("../../config/firebase", () => ({
       update: mockBatchUpdate,
       commit: mockBatchCommit,
     })),
+    runTransaction: jest.fn(async (fn: (t: unknown) => Promise<unknown>) => {
+      const transaction = {
+        get: jest.fn().mockResolvedValue({ docs: [] }),
+        set: mockDocSet,
+        update: mockDocUpdate,
+      };
+      return fn(transaction);
+    }),
   },
   auth: {},
 }));
