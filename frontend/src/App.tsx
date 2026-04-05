@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
+import { useTenant } from "./hooks/useTenant";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Upload } from "./pages/Upload";
@@ -19,6 +20,17 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) return <div>Carregando...</div>;
   if (!user) return <Navigate to="/login" />;
+
+  return <>{children}</>;
+}
+
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
+  const { isSuperAdmin, loading: tenantLoading } = useTenant();
+
+  if (authLoading || tenantLoading) return <div>Carregando...</div>;
+  if (!user) return <Navigate to="/login" />;
+  if (!isSuperAdmin) return <Navigate to="/" />;
 
   return <>{children}</>;
 }
@@ -74,11 +86,11 @@ function App() {
       <Route
         path="/admin"
         element={
-          <PrivateRoute>
+          <SuperAdminRoute>
             <Suspense fallback={<LoadingState>Carregando...</LoadingState>}>
               <Admin />
             </Suspense>
-          </PrivateRoute>
+          </SuperAdminRoute>
         }
       />
 

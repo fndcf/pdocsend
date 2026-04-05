@@ -131,6 +131,8 @@ imobi-whatsapp/
 │   │   │   ├── auth.ts              # Autenticacao + tenant resolution
 │   │   │   ├── superadmin.ts        # Verificacao de superadmin
 │   │   │   ├── errorHandler.ts      # Error handler global
+│   │   │   ├── requestId.ts         # Request ID (uuid) em todas as requests
+│   │   │   ├── validate.ts          # Validacao Zod
 │   │   │   └── upload.ts            # Upload de PDF (Busboy)
 │   │   ├── models/
 │   │   │   ├── Imovel.ts            # Imovel, Contato, ContatoComStatus
@@ -138,6 +140,7 @@ imobi-whatsapp/
 │   │   │   └── Tenant.ts            # Tenant, User, MensagemTemplate
 │   │   ├── routes/
 │   │   │   ├── index.ts             # Router principal
+│   │   │   ├── healthRoutes.ts      # GET /api/health (status do sistema)
 │   │   │   ├── pdfRoutes.ts         # POST /api/pdf/processar
 │   │   │   ├── envioRoutes.ts       # Envios, lotes, dashboard, contato
 │   │   │   └── adminRoutes.ts       # Admin (superadmin only)
@@ -169,6 +172,7 @@ imobi-whatsapp/
 │   │   ├── contexts/AuthContext.tsx  # Autenticacao
 │   │   ├── hooks/useTenant.ts       # Hook de tenant + role
 │   │   ├── components/
+│   │   │   ├── ErrorBoundary.tsx     # Error boundary global
 │   │   │   └── TenantGuard.tsx      # Guard para usuarios sem tenant
 │   │   ├── pages/
 │   │   │   ├── Login/               # Login + recuperacao de senha
@@ -286,45 +290,65 @@ firebase deploy
 
 ```bash
 cd backend
-npm test                    # Rodar testes
+npm test                    # Rodar testes unitarios (122 testes)
 npm run test:watch          # Modo watch
 npm run test:coverage       # Com cobertura
+npm run test:rules          # Testes de Firestore Rules (requer emulador)
 ```
 
 ### Frontend
 
 ```bash
 cd frontend
-npm test                    # Rodar testes
+npm test                    # Rodar testes (69 testes)
 npm run test:watch          # Modo watch
 npm run test:coverage       # Com cobertura
+```
+
+### Testes de Firestore Rules
+
+Requer emulador Firestore rodando:
+```bash
+firebase emulators:start --only firestore
+cd backend && npm run test:rules
 ```
 
 ---
 
 ## Cobertura de Testes
 
-### Backend (10 suites, 103+ testes)
+### Backend (12 suites, 122 testes + 23 testes de rules)
 
-| Area | Statements | Branches | Lines |
-|------|-----------|----------|-------|
-| Services | 93% | 85% | 94% |
-| Utils | 95% | 87% | 98% |
-| Controllers | 78% | 59% | 82% |
-| **Total** | **88%** | **81%** | **90%** |
+| Area | Testes | Cobertura |
+|------|--------|-----------|
+| Controllers | 33 | EnvioController, AdminController, PdfController |
+| Services | 43 | PdfParser, DataCleaner, MessageBuilder, Deduplicacao, processarEnvio |
+| Utils | 32 | phoneUtils, textUtils, responseHelper |
+| Integracao | 15 | Fluxo Parse → Clean → Message |
+| Firestore Rules | 23 | Isolamento multi-tenant, superadmin, deny writes |
+| **Total** | **145** | **88% Statements, 81% Branches** |
 
-### Frontend (3 suites, 27 testes)
+### Frontend (6 suites, 69 testes)
 
-| Area | Statements | Branches | Lines |
-|------|-----------|----------|-------|
-| Login | 97% | 85% | 97% |
-| Register | 97% | 86% | 97% |
-| Upload | 91% | 78% | 92% |
-| **Total** | **92%** | **74%** | **92%** |
+| Area | Testes | Cobertura |
+|------|--------|-----------|
+| Login | 10 | Login, recuperacao, tenant check |
+| Register | 5 | Registro, validacao, sucesso |
+| Upload | 12 | Upload, drag/drop, erros, dashboard |
+| Revisao | 16 | Contatos, edicao, remocao, modal, envio |
+| Envio | 14 | Progresso, status, cancelar, finalizado |
+| Admin | 12 | Tabs, clientes, pendentes, criar, editar |
+| **Total** | **69** | **92% Statements, 74% Branches** |
 
 ---
 
 ## API Endpoints
+
+### Health Check
+
+| Metodo | Endpoint | Descricao |
+|--------|----------|-----------|
+| GET | `/api/health` | Status do sistema (Firestore latency) |
 
 ### PDF
 
@@ -406,8 +430,9 @@ users/{uid}
 | dev:emulators | `npm run dev:emulators` | Servidor com emuladores |
 | build | `npm run build` | Compilar TypeScript |
 | lint | `npm run lint` | ESLint |
-| test | `npm test` | Testes |
+| test | `npm test` | Testes unitarios |
 | test:coverage | `npm run test:coverage` | Testes com cobertura |
+| test:rules | `npm run test:rules` | Testes de Firestore Rules (requer emulador) |
 | seed:tenant | `npm run seed:tenant` | Criar tenant |
 | seed:ativar | `npm run seed:ativar` | Ativar usuario |
 
@@ -425,7 +450,8 @@ users/{uid}
 
 ## Documentacao Adicional
 
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Arquitetura detalhada e guia de implementacao
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Arquitetura, regras, SOLID, escalabilidade e guia de implementacao
+- [ANALISE_TECNICA.md](docs/ANALISE_TECNICA.md) - Analise de qualidade, plano de evolucao e status das fases
 - [SETUP.md](SETUP.md) - Guia completo de setup para producao
 
 

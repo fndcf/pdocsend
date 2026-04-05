@@ -1,7 +1,7 @@
 # Arquitetura - PDocSend
 
 > Documento de referencia para manter consistencia em novas implementacoes.
-> Ultima atualizacao: 02/04/2026
+> Ultima atualizacao: 04/04/2026
 
 ---
 
@@ -434,7 +434,7 @@ Implementado no `PdfController.processar()`:
 
 ## Estrutura de Testes
 
-### Backend (122 testes, 12 suites)
+### Backend (122 testes unitarios + 23 testes de rules, 13 suites)
 
 ```
 src/__tests__/
@@ -450,6 +450,8 @@ src/__tests__/
 │   └── processarEnvio.test.ts       # Idempotencia, cancelamento, envio
 ├── integration/
 │   └── parseFlow.test.ts            # Fluxo Parse → Clean → Message
+├── rules/
+│   └── firestore.rules.test.ts      # Isolamento tenant, superadmin, deny writes (requer emulador)
 ├── utils/
 │   ├── phoneUtils.test.ts           # Normalizacao, extracao de nome
 │   ├── textUtils.test.ts            # Valores, hash, saudacao
@@ -457,6 +459,9 @@ src/__tests__/
 └── mocks/
     └── firestore.ts                 # Mock do Firestore
 ```
+
+> **Nota:** Testes de rules rodam separados com `npm run test:rules` (requer emulador Firestore).
+> Testes unitarios rodam com `npm test` (sem emulador).
 
 ### Frontend (69 testes, 6 suites)
 
@@ -935,6 +940,11 @@ src/__tests__/
 | Rate limiting ativo | 100 req/min global, 10/min para upload de PDF |
 | Credenciais no `.env` | Nunca no codigo. `.env` esta no `.gitignore` |
 | Secrets no CI via GitHub | `FIREBASE_SERVICE_ACCOUNT` e `VITE_FIREBASE_*` como secrets do repo |
+| Request ID | Middleware `requestId` adiciona UUID em toda request. Header `x-request-id` no response para correlacao de logs |
+| Dados sensiveis nos logs | Logger mascara telefone, nome, email em producao (LGPD). Ex: `55119****1818`, `Den***` |
+| Limite diario atomico | Verificacao + criacao de lote em `db.runTransaction()` para evitar race conditions |
+| Error Boundary | Componente React que captura erros e mostra tela amigavel em vez de tela branca |
+| Firestore Rules testadas | 23 testes automatizados validam isolamento de tenant, superadmin e deny writes |
 
 ---
 
