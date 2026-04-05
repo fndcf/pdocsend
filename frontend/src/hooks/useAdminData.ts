@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import apiClient from "@/services/apiClient";
+import { queryKeys } from "@/types";
 
 interface Cliente {
   id: string;
@@ -40,19 +41,19 @@ export function useAdminData(tab: Tab) {
   const queryClient = useQueryClient();
 
   const { data: clientes = [], isLoading: loadingClientes, error: errorClientes } = useQuery({
-    queryKey: ["admin", "clientes"],
+    queryKey: queryKeys.admin.clientes,
     queryFn: () => apiClient.get<Cliente[]>("/admin/clientes"),
     enabled: tab === "clientes",
   });
 
   const { data: pendentes = [], isLoading: loadingPendentes, error: errorPendentes } = useQuery({
-    queryKey: ["admin", "pendentes"],
+    queryKey: queryKeys.admin.pendentes,
     queryFn: () => apiClient.get<Pendente[]>("/admin/pendentes"),
     // Sempre buscar pendentes (para o badge de contagem)
   });
 
   const { data: monitoramento = [], isLoading: loadingMonitoramento, error: errorMonitoramento } = useQuery({
-    queryKey: ["admin", "monitoramento"],
+    queryKey: queryKeys.admin.monitoramento,
     queryFn: () => apiClient.get<MonitoramentoItem[]>("/admin/monitoramento"),
     enabled: tab === "monitoramento",
   });
@@ -66,7 +67,7 @@ export function useAdminData(tab: Tab) {
   const error = errorObj ? "Erro ao carregar dados" : "";
 
   const reload = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["admin"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
   }, [queryClient]);
 
   return { clientes, pendentes, monitoramento, loading, error, reload };

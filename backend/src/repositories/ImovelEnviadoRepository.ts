@@ -62,6 +62,23 @@ class ImovelEnviadoRepository {
     await batch.commit();
   }
 
+  async limparAntigos(tenantId: string, anteriorA: Timestamp): Promise<number> {
+    const snapshot = await this.getCollection(tenantId)
+      .where("enviadoEm", "<", anteriorA)
+      .limit(500)
+      .get();
+
+    if (snapshot.empty) return 0;
+
+    const batch = db.batch();
+    for (const doc of snapshot.docs) {
+      batch.delete(doc.ref);
+    }
+    await batch.commit();
+
+    return snapshot.size;
+  }
+
   async buscarPorTelefone(tenantId: string, telefone: string) {
     const snapshot = await this.getCollection(tenantId)
       .where("telefone", "==", telefone)

@@ -14,7 +14,7 @@ import {
   History,
 } from "lucide-react";
 import apiClient from "@/services/apiClient";
-import { ContatoComStatus } from "@/types";
+import { ContatoComStatus, queryKeys } from "@/types";
 import {
   ErrorAlert,
   PageHeader,
@@ -119,8 +119,8 @@ export function Revisao() {
       }),
     onSuccess: (resultado) => {
       sessionStorage.removeItem("revisaoData");
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["lotes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      queryClient.invalidateQueries({ queryKey: queryKeys.lotes() });
       navigate(`/envio/${resultado.loteId}`);
     },
     onError: (err: unknown) => {

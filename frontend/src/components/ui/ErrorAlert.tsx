@@ -8,8 +8,8 @@ interface ErrorAlertProps {
 
 export function ErrorAlert({ message, className }: ErrorAlertProps) {
   return (
-    <Container className={className}>
-      <AlertCircle size={16} />
+    <Container className={className} role="alert">
+      <AlertCircle size={16} aria-hidden="true" />
       {message}
     </Container>
   );

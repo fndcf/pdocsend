@@ -3,6 +3,7 @@
  */
 
 import { Response } from "express";
+import { Timestamp } from "firebase-admin/firestore";
 import { AuthRequest } from "../middlewares/auth";
 import { ResponseHelper } from "../utils/responseHelper";
 import { auth } from "../config/firebase";
@@ -10,6 +11,7 @@ import logger from "../utils/logger";
 import tenantRepository from "../repositories/TenantRepository";
 import userRepository from "../repositories/UserRepository";
 import loteRepository from "../repositories/LoteRepository";
+import imovelEnviadoRepository from "../repositories/ImovelEnviadoRepository";
 
 class AdminController {
   /**
@@ -212,6 +214,39 @@ class AdminController {
     } catch (error) {
       logger.error("Erro ao buscar monitoramento", {}, error);
       ResponseHelper.internalError(res, "Erro ao buscar monitoramento");
+    }
+  }
+
+  /**
+   * Limpa registros de imoveis_enviados mais antigos que X meses
+   * POST /api/admin/cleanup
+   */
+  async cleanup(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const meses = parseInt(req.body.meses as string) || 12;
+      const dataLimite = new Date();
+      dataLimite.setMonth(dataLimite.getMonth() - meses);
+      const timestamp = Timestamp.fromDate(dataLimite);
+
+      const tenants = await tenantRepository.listarTodos();
+      let totalRemovidos = 0;
+
+      for (const tenant of tenants) {
+        const tenantId = tenant.id;
+        const removidos = await imovelEnviadoRepository.limparAntigos(tenantId, timestamp);
+        totalRemovidos += removidos;
+      }
+
+      logger.info("Cleanup executado", { meses, totalRemovidos });
+
+      ResponseHelper.success(res, {
+        meses,
+        totalRemovidos,
+        dataLimite: dataLimite.toISOString(),
+      }, `${totalRemovidos} registro(s) removido(s)`);
+    } catch (error) {
+      logger.error("Erro ao executar cleanup", {}, error);
+      ResponseHelper.internalError(res, "Erro ao executar cleanup");
     }
   }
 }

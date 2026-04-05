@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import styled from "styled-components";
 
 interface ModalProps {
@@ -8,9 +8,30 @@ interface ModalProps {
 }
 
 export function Modal({ onClose, children, maxWidth = "400px" }: ModalProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Fechar com Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  // Focus trap: focar no modal ao abrir
+  useEffect(() => {
+    contentRef.current?.focus();
+  }, []);
+
   return (
-    <Overlay onClick={onClose}>
-      <Content onClick={(e) => e.stopPropagation()} $maxWidth={maxWidth}>
+    <Overlay onClick={onClose} role="dialog" aria-modal="true">
+      <Content
+        ref={contentRef}
+        onClick={(e) => e.stopPropagation()}
+        $maxWidth={maxWidth}
+        tabIndex={-1}
+      >
         {children}
       </Content>
     </Overlay>

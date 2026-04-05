@@ -1,3 +1,35 @@
+// Status de envio individual
+export const ENVIO_STATUS = {
+  PENDENTE: "pendente",
+  ENVIANDO: "enviando",
+  ENVIADO: "enviado",
+  ERRO: "erro",
+  CANCELADO: "cancelado",
+} as const;
+
+export type EnvioStatus = (typeof ENVIO_STATUS)[keyof typeof ENVIO_STATUS];
+
+// Status de lote
+export const LOTE_STATUS = {
+  EM_ANDAMENTO: "em_andamento",
+  FINALIZADO: "finalizado",
+  CANCELADO: "cancelado",
+} as const;
+
+export type LoteStatus = (typeof LOTE_STATUS)[keyof typeof LOTE_STATUS];
+
+// Query keys centralizadas
+export const queryKeys = {
+  dashboard: ["dashboard"] as const,
+  lotes: (tenantId?: string) => ["lotes", tenantId] as const,
+  admin: {
+    all: ["admin"] as const,
+    clientes: ["admin", "clientes"] as const,
+    pendentes: ["admin", "pendentes"] as const,
+    monitoramento: ["admin", "monitoramento"] as const,
+  },
+};
+
 export interface Imovel {
   edificio: string;
   endereco: string;
@@ -25,7 +57,7 @@ export interface Lote {
   totalEnvios: number;
   enviados: number;
   erros: number;
-  status: "em_andamento" | "finalizado" | "cancelado";
+  status: LoteStatus;
   pdfOrigem: string;
   criadoEm: string;
   finalizadoEm: string | null;
@@ -38,7 +70,7 @@ export interface EnvioItem {
   nomeContato: string;
   imoveis: Imovel[];
   mensagem: string;
-  status: "pendente" | "enviando" | "enviado" | "erro" | "cancelado";
+  status: EnvioStatus;
   erro: string;
   enviadoEm: string | null;
 }

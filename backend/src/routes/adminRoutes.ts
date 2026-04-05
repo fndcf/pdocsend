@@ -44,4 +44,9 @@ router.get("/monitoramento", (req, res) =>
   adminController.monitoramento(req as AuthRequest, res)
 );
 
+// POST /api/admin/cleanup - Limpar imoveis_enviados antigos
+router.post("/cleanup", (req, res) =>
+  adminController.cleanup(req as AuthRequest, res)
+);
+
 export default router;

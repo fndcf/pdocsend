@@ -19,7 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import apiClient from "@/services/apiClient";
 import { useTenant } from "@/hooks/useTenant";
 import { TenantGuard } from "@/components/TenantGuard";
-import { Lote } from "@/types";
+import { Lote, queryKeys } from "@/types";
 
 interface LotesResponse {
   lotes: Lote[];
@@ -36,7 +36,7 @@ export function Historico() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const { data: firstPage, isLoading: loading } = useQuery({
-    queryKey: ["lotes", tenantId],
+    queryKey: queryKeys.lotes(tenantId ?? undefined),
     queryFn: () => apiClient.get<LotesResponse>("/envios/lotes"),
     enabled: !!tenantId,
   });

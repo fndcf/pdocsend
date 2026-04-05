@@ -69,7 +69,8 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Rotas da API
+// Rotas da API (v1 + retrocompatibilidade sem versao)
+app.use("/api/v1", routes);
 app.use("/api", routes);
 
 // 404

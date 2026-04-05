@@ -10,139 +10,49 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  X,
   LogOut,
   Settings,
 } from "lucide-react";
-import { ErrorAlert, SuccessAlert, Modal as ModalUI } from "@/components/ui";
-import apiClient from "@/services/apiClient";
+import { ErrorAlert, SuccessAlert } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminData, type Cliente, type Pendente, type Tab } from "@/hooks/useAdminData";
+import { ClienteFormModal } from "./ClienteFormModal";
 
 export function Admin() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [tab, setTab] = useState<Tab>("clientes");
   const { clientes, pendentes, monitoramento, loading, error, reload: loadData } = useAdminData(tab);
-  const [showNovoCliente, setShowNovoCliente] = useState(false);
-  const [selectedPendente, setSelectedPendente] = useState<Pendente | null>(null);
+
   const [formSuccess, setFormSuccess] = useState("");
-
-  // Form state
-  const [formNome, setFormNome] = useState("");
-  const [formCorretor, setFormCorretor] = useState("");
-  const [formEmpresa, setFormEmpresa] = useState("");
-  const [formCargo, setFormCargo] = useState("corretor");
-  const [formInstanceId, setFormInstanceId] = useState("");
-  const [formToken, setFormToken] = useState("");
-  const [formClientToken, setFormClientToken] = useState("");
-  const [formLimiteDiario, setFormLimiteDiario] = useState("200");
-  const [formTextoPersonalizado, setFormTextoPersonalizado] = useState("");
-  const [formLoading, setFormLoading] = useState(false);
-  const [formError, setFormError] = useState("");
-
-  const handleCriarCliente = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPendente) return;
-
-    setFormLoading(true);
-    setFormError("");
-
-    try {
-      await apiClient.post("/admin/clientes", {
-        uid: selectedPendente.uid,
-        nome: formNome,
-        nomeCorretor: formCorretor,
-        nomeEmpresa: formEmpresa,
-        cargo: formCargo,
-        ...(formTextoPersonalizado && { textoPersonalizado: formTextoPersonalizado }),
-        zapiInstanceId: formInstanceId,
-        zapiToken: formToken,
-        zapiClientToken: formClientToken,
-        limiteDiario: formLimiteDiario,
-      });
-
-      setFormSuccess(`Cliente ${formNome} configurado com sucesso!`);
-      setShowNovoCliente(false);
-      setSelectedPendente(null);
-      resetForm();
-      loadData();
-    } catch {
-      setFormError("Erro ao criar cliente");
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  const resetForm = () => {
-    setFormNome("");
-    setFormCorretor("");
-    setFormEmpresa("");
-    setFormCargo("corretor");
-    setFormInstanceId("");
-    setFormToken("");
-    setFormClientToken("");
-    setFormLimiteDiario("200");
-    setFormTextoPersonalizado("");
-    setFormError("");
-  };
-
-  const [showEditCliente, setShowEditCliente] = useState(false);
+  const [modalMode, setModalMode] = useState<"criar" | "editar" | null>(null);
+  const [selectedPendente, setSelectedPendente] = useState<Pendente | null>(null);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
 
   const openNovoCliente = (pendente: Pendente) => {
     setSelectedPendente(pendente);
-    setShowNovoCliente(true);
+    setModalMode("criar");
     setFormSuccess("");
-    resetForm();
   };
 
   const openEditCliente = (cliente: Cliente) => {
     setEditingCliente(cliente);
-    setFormNome(cliente.nome);
-    setFormCorretor(cliente.mensagemTemplate?.nomeCorretor || "");
-    setFormEmpresa(cliente.mensagemTemplate?.nomeEmpresa || "");
-    setFormCargo(cliente.mensagemTemplate?.cargo || "corretor");
-    setFormTextoPersonalizado((cliente.mensagemTemplate as Record<string, string>)?.textoPersonalizado || "");
-    setFormInstanceId("");
-    setFormToken("");
-    setFormClientToken("");
-    setFormLimiteDiario(String(cliente.limiteDiario || 200));
-    setFormError("");
-    setShowEditCliente(true);
+    setModalMode("editar");
     setFormSuccess("");
   };
 
-  const handleEditarCliente = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingCliente) return;
+  const handleModalSuccess = (message: string) => {
+    setFormSuccess(message);
+    setModalMode(null);
+    setSelectedPendente(null);
+    setEditingCliente(null);
+    loadData();
+  };
 
-    setFormLoading(true);
-    setFormError("");
-
-    try {
-      const body: Record<string, string> = {};
-      if (formNome) body.nome = formNome;
-      if (formCorretor) body.nomeCorretor = formCorretor;
-      if (formEmpresa) body.nomeEmpresa = formEmpresa;
-      if (formCargo) body.cargo = formCargo;
-      body.textoPersonalizado = formTextoPersonalizado;
-      if (formInstanceId) body.zapiInstanceId = formInstanceId;
-      if (formToken) body.zapiToken = formToken;
-      if (formClientToken) body.zapiClientToken = formClientToken;
-      if (formLimiteDiario) body.limiteDiario = formLimiteDiario;
-
-      await apiClient.put(`/admin/clientes/${editingCliente.id}`, body);
-
-      setFormSuccess(`Cliente ${formNome} atualizado com sucesso!`);
-      setShowEditCliente(false);
-      setEditingCliente(null);
-      loadData();
-    } catch {
-      setFormError("Erro ao atualizar cliente");
-    } finally {
-      setFormLoading(false);
-    }
+  const handleModalClose = () => {
+    setModalMode(null);
+    setSelectedPendente(null);
+    setEditingCliente(null);
   };
 
   return (
@@ -182,7 +92,6 @@ export function Admin() {
           </LoadingState>
         ) : (
           <>
-            {/* TAB: CLIENTES */}
             {tab === "clientes" && (
               <Section>
                 {clientes.length === 0 ? (
@@ -212,7 +121,6 @@ export function Admin() {
               </Section>
             )}
 
-            {/* TAB: PENDENTES */}
             {tab === "pendentes" && (
               <Section>
                 {pendentes.length === 0 ? (
@@ -237,7 +145,6 @@ export function Admin() {
               </Section>
             )}
 
-            {/* TAB: MONITORAMENTO */}
             {tab === "monitoramento" && (
               <Section>
                 {monitoramento.length === 0 ? (
@@ -276,144 +183,22 @@ export function Admin() {
         )}
       </Content>
 
-      {/* MODAL: NOVO CLIENTE */}
-      {showNovoCliente && selectedPendente && (
-        <ModalUI onClose={() => setShowNovoCliente(false)} maxWidth="520px">
-            <ModalHeader>
-              <ModalTitle>Configurar novo cliente</ModalTitle>
-              <CloseButton onClick={() => setShowNovoCliente(false)}>
-                <X size={20} />
-              </CloseButton>
-            </ModalHeader>
-            <ModalSubtitle>Usuário: {selectedPendente.email}</ModalSubtitle>
-
-            <Form onSubmit={handleCriarCliente}>
-              <FormGroup>
-                <Label>Nome da empresa</Label>
-                <Input value={formNome} onChange={(e) => setFormNome(e.target.value)} required />
-              </FormGroup>
-              <FormRow>
-                <FormGroup>
-                  <Label>Nome do corretor</Label>
-                  <Input value={formCorretor} onChange={(e) => setFormCorretor(e.target.value)} required />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Cargo</Label>
-                  <Input value={formCargo} onChange={(e) => setFormCargo(e.target.value)} />
-                </FormGroup>
-              </FormRow>
-              <FormGroup>
-                <Label>Nome da empresa (na mensagem)</Label>
-                <Input value={formEmpresa} onChange={(e) => setFormEmpresa(e.target.value)} required />
-              </FormGroup>
-              <FormGroup>
-                <Label>Z-API Instance ID</Label>
-                <Input value={formInstanceId} onChange={(e) => setFormInstanceId(e.target.value)} required />
-              </FormGroup>
-              <FormRow>
-                <FormGroup>
-                  <Label>Z-API Token</Label>
-                  <Input value={formToken} onChange={(e) => setFormToken(e.target.value)} required />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Z-API Client Token</Label>
-                  <Input value={formClientToken} onChange={(e) => setFormClientToken(e.target.value)} required />
-                </FormGroup>
-              </FormRow>
-              <FormGroup>
-                <Label>Limite diário de mensagens</Label>
-                <Input type="number" value={formLimiteDiario} onChange={(e) => setFormLimiteDiario(e.target.value)} min="1" max="1000" />
-              </FormGroup>
-              <FormGroup>
-                <Label>Mensagem personalizada (opcional)</Label>
-                <Textarea
-                  value={formTextoPersonalizado}
-                  onChange={(e) => setFormTextoPersonalizado(e.target.value)}
-                  rows={5}
-                  placeholder={"{saudacao} {nome}, tudo bem?\nSou o {nomeCorretor}, {cargo} do {nomeEmpresa}. Estou entrando em contato para saber se você tem interesse em conversarmos sobre {operacao}.\n\nFico à disposição!"}
-                />
-                <HelpText>
-                  Variáveis: {"{saudacao}"}, {"{nome}"}, {"{nomeCorretor}"}, {"{nomeEmpresa}"}, {"{cargo}"}, {"{operacao}"}
-                </HelpText>
-              </FormGroup>
-
-              {formError && <ErrorAlert message={formError} />}
-
-              <SubmitButton type="submit" disabled={formLoading}>
-                {formLoading ? "Configurando..." : "Configurar cliente"}
-              </SubmitButton>
-            </Form>
-        </ModalUI>
+      {modalMode === "criar" && selectedPendente && (
+        <ClienteFormModal
+          mode="criar"
+          pendente={selectedPendente}
+          onClose={handleModalClose}
+          onSuccess={handleModalSuccess}
+        />
       )}
 
-      {/* MODAL: EDITAR CLIENTE */}
-      {showEditCliente && editingCliente && (
-        <ModalUI onClose={() => setShowEditCliente(false)} maxWidth="520px">
-            <ModalHeader>
-              <ModalTitle>Editar cliente</ModalTitle>
-              <CloseButton onClick={() => setShowEditCliente(false)}>
-                <X size={20} />
-              </CloseButton>
-            </ModalHeader>
-            <ModalSubtitle>{editingCliente.nome}</ModalSubtitle>
-
-            <Form onSubmit={handleEditarCliente}>
-              <FormGroup>
-                <Label>Nome da empresa</Label>
-                <Input value={formNome} onChange={(e) => setFormNome(e.target.value)} />
-              </FormGroup>
-              <FormRow>
-                <FormGroup>
-                  <Label>Nome do corretor</Label>
-                  <Input value={formCorretor} onChange={(e) => setFormCorretor(e.target.value)} />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Cargo</Label>
-                  <Input value={formCargo} onChange={(e) => setFormCargo(e.target.value)} />
-                </FormGroup>
-              </FormRow>
-              <FormGroup>
-                <Label>Nome da empresa (na mensagem)</Label>
-                <Input value={formEmpresa} onChange={(e) => setFormEmpresa(e.target.value)} />
-              </FormGroup>
-              <FormGroup>
-                <Label>Z-API Instance ID (deixe vazio para manter)</Label>
-                <Input value={formInstanceId} onChange={(e) => setFormInstanceId(e.target.value)} placeholder="Manter atual" />
-              </FormGroup>
-              <FormRow>
-                <FormGroup>
-                  <Label>Z-API Token (deixe vazio para manter)</Label>
-                  <Input value={formToken} onChange={(e) => setFormToken(e.target.value)} placeholder="Manter atual" />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Z-API Client Token (deixe vazio para manter)</Label>
-                  <Input value={formClientToken} onChange={(e) => setFormClientToken(e.target.value)} placeholder="Manter atual" />
-                </FormGroup>
-              </FormRow>
-              <FormGroup>
-                <Label>Limite diário de mensagens</Label>
-                <Input type="number" value={formLimiteDiario} onChange={(e) => setFormLimiteDiario(e.target.value)} min="1" max="1000" />
-              </FormGroup>
-              <FormGroup>
-                <Label>Mensagem personalizada</Label>
-                <Textarea
-                  value={formTextoPersonalizado}
-                  onChange={(e) => setFormTextoPersonalizado(e.target.value)}
-                  rows={5}
-                  placeholder={"{saudacao} {nome}, tudo bem?\nSou o {nomeCorretor}, {cargo} do {nomeEmpresa}. Estou entrando em contato para saber se você tem interesse em conversarmos sobre {operacao}.\n\nFico à disposição!"}
-                />
-                <HelpText>
-                  Variáveis: {"{saudacao}"}, {"{nome}"}, {"{nomeCorretor}"}, {"{nomeEmpresa}"}, {"{cargo}"}, {"{operacao}"}. Deixe vazio para usar o texto padrão.
-                </HelpText>
-              </FormGroup>
-
-              {formError && <ErrorAlert message={formError} />}
-
-              <SubmitButton type="submit" disabled={formLoading}>
-                {formLoading ? "Salvando..." : "Salvar alterações"}
-              </SubmitButton>
-            </Form>
-        </ModalUI>
+      {modalMode === "editar" && editingCliente && (
+        <ClienteFormModal
+          mode="editar"
+          cliente={editingCliente}
+          onClose={handleModalClose}
+          onSuccess={handleModalSuccess}
+        />
       )}
     </Container>
   );
@@ -422,15 +207,12 @@ export function Admin() {
 const Container = styled.div`
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.background};
-
   .spin { animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 `;
 
 const Header = styled.header`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  display: flex; align-items: center; gap: 0.5rem;
   padding: 0.75rem 1rem;
   background: ${({ theme }) => theme.colors.surface};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
@@ -438,16 +220,13 @@ const Header = styled.header`
 `;
 
 const Logo = styled.h1`
-  font-size: 1.25rem;
-  font-weight: 800;
+  font-size: 1.25rem; font-weight: 800;
   color: ${({ theme }) => theme.colors.primary};
 `;
 
 const HeaderTitle = styled.h1`
-  font-size: ${({ theme }) => theme.fontSize.lg};
-  font-weight: 700;
-  flex: 1;
-  text-align: center;
+  font-size: ${({ theme }) => theme.fontSize.lg}; font-weight: 700;
+  flex: 1; text-align: center;
 `;
 
 const LogoutButton = styled.button`
@@ -464,15 +243,13 @@ const Tabs = styled.div`
   display: flex; gap: 0;
   background: ${({ theme }) => theme.colors.surface};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  padding: 0 1rem;
-  overflow-x: auto;
+  padding: 0 1rem; overflow-x: auto;
   @media (min-width: 640px) { padding: 0 2rem; }
 `;
 
 const TabButton = styled.button<{ $active: boolean }>`
   display: flex; align-items: center; gap: 0.375rem;
-  padding: 0.75rem 1rem;
-  background: none; border: none;
+  padding: 0.75rem 1rem; background: none; border: none;
   border-bottom: 2px solid ${(p) => p.$active ? p.theme.colors.primary : "transparent"};
   color: ${(p) => p.$active ? p.theme.colors.primary : p.theme.colors.textSecondary};
   font-size: ${({ theme }) => theme.fontSize.sm};
@@ -504,13 +281,8 @@ const EmptyState = styled.div`
   text-align: center; padding: 3rem; color: ${({ theme }) => theme.colors.textSecondary};
 `;
 
-const StyledSuccessAlert = styled(SuccessAlert)`
-  margin-bottom: 1rem;
-`;
-
-const StyledErrorAlert = styled(ErrorAlert)`
-  margin-bottom: 1rem;
-`;
+const StyledSuccessAlert = styled(SuccessAlert)`margin-bottom: 1rem;`;
+const StyledErrorAlert = styled(ErrorAlert)`margin-bottom: 1rem;`;
 
 const Card = styled.div<{ $clickable?: boolean }>`
   padding: 1rem; background: ${({ theme }) => theme.colors.surface};
@@ -522,8 +294,7 @@ const Card = styled.div<{ $clickable?: boolean }>`
 `;
 
 const CardHeader = styled.div`
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 0.5rem;
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;
 `;
 
 const CardTitle = styled.h3`
@@ -531,8 +302,7 @@ const CardTitle = styled.h3`
 `;
 
 const CardSubtitle = styled.span`
-  font-weight: 400;
-  font-size: ${({ theme }) => theme.fontSize.sm};
+  font-weight: 400; font-size: ${({ theme }) => theme.fontSize.sm};
   color: ${({ theme }) => theme.colors.textSecondary};
 `;
 
@@ -572,9 +342,7 @@ const ConfigButton = styled.button`
   &:hover { background: ${({ theme }) => theme.colors.primaryHover}; }
 `;
 
-const MonitorStats = styled.div`
-  display: flex; gap: 0.5rem;
-`;
+const MonitorStats = styled.div`display: flex; gap: 0.5rem;`;
 
 const MonitorStat = styled.span<{ $color: string }>`
   font-size: ${({ theme }) => theme.fontSize.xs}; font-weight: 600;
@@ -588,9 +356,7 @@ const LoteItem = styled.div`
   &:hover { opacity: 0.8; }
 `;
 
-const LoteIcon = styled.div`
-  flex-shrink: 0;
-`;
+const LoteIcon = styled.div`flex-shrink: 0;`;
 
 const LoteInfo = styled.div`
   flex: 1; font-size: ${({ theme }) => theme.fontSize.sm};
@@ -599,78 +365,4 @@ const LoteInfo = styled.div`
 const LoteStats = styled.span`
   margin-left: 0.5rem; color: ${({ theme }) => theme.colors.textSecondary};
   font-size: ${({ theme }) => theme.fontSize.xs};
-`;
-
-
-const ModalHeader = styled.div`
-  display: flex; justify-content: space-between; align-items: center;
-`;
-
-const ModalTitle = styled.h2`
-  font-size: ${({ theme }) => theme.fontSize.lg}; font-weight: 700;
-`;
-
-const ModalSubtitle = styled.p`
-  font-size: ${({ theme }) => theme.fontSize.sm};
-  color: ${({ theme }) => theme.colors.textSecondary};
-  margin-bottom: 1.25rem;
-`;
-
-const CloseButton = styled.button`
-  background: none; border: none; color: ${({ theme }) => theme.colors.textSecondary};
-  cursor: pointer; padding: 0.25rem;
-`;
-
-const Form = styled.form`
-  display: flex; flex-direction: column; gap: 1rem;
-`;
-
-const FormGroup = styled.div`
-  display: flex; flex-direction: column; gap: 0.25rem; flex: 1;
-`;
-
-const FormRow = styled.div`
-  display: flex; gap: 0.75rem;
-  @media (max-width: 480px) { flex-direction: column; }
-`;
-
-const Label = styled.label`
-  font-size: ${({ theme }) => theme.fontSize.sm}; font-weight: 600;
-`;
-
-const Input = styled.input`
-  padding: 0.5rem 0.75rem;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  font-size: ${({ theme }) => theme.fontSize.sm};
-  outline: none;
-  &:focus { border-color: ${({ theme }) => theme.colors.primary}; }
-`;
-
-const Textarea = styled.textarea`
-  padding: 0.5rem 0.75rem;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  font-size: ${({ theme }) => theme.fontSize.sm};
-  font-family: inherit;
-  line-height: 1.5;
-  outline: none;
-  resize: vertical;
-  &:focus { border-color: ${({ theme }) => theme.colors.primary}; }
-`;
-
-const HelpText = styled.span`
-  font-size: ${({ theme }) => theme.fontSize.xs};
-  color: ${({ theme }) => theme.colors.textSecondary};
-  line-height: 1.4;
-`;
-
-const SubmitButton = styled.button`
-  padding: 0.75rem; background: ${({ theme }) => theme.colors.primary};
-  color: white; border: none;
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  font-size: ${({ theme }) => theme.fontSize.md}; font-weight: 600;
-  cursor: pointer; margin-top: 0.5rem;
-  &:hover:not(:disabled) { background: ${({ theme }) => theme.colors.primaryHover}; }
-  &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;

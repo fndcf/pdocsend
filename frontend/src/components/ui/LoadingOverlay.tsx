@@ -6,7 +6,7 @@ interface LoadingOverlayProps {
 }
 
 export function LoadingOverlay({ children }: LoadingOverlayProps) {
-  return <Container>{children}</Container>;
+  return <Container role="status" aria-live="polite">{children}</Container>;
 }
 
 const Container = styled.div`

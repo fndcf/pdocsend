@@ -8,8 +8,8 @@ interface SuccessAlertProps {
 
 export function SuccessAlert({ message, className }: SuccessAlertProps) {
   return (
-    <Container className={className}>
-      <CheckCircle size={16} />
+    <Container className={className} role="status">
+      <CheckCircle size={16} aria-hidden="true" />
       {message}
     </Container>
   );

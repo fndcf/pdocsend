@@ -22,7 +22,7 @@ import apiClient from "@/services/apiClient";
 import { useTenant } from "@/hooks/useTenant";
 import { useLoteProgress } from "@/hooks/useLoteProgress";
 import { TenantGuard } from "@/components/TenantGuard";
-import { EnvioItem } from "@/types";
+import { EnvioItem, ENVIO_STATUS, LOTE_STATUS } from "@/types";
 
 export function Envio() {
   const { loteId } = useParams<{ loteId: string }>();
@@ -133,7 +133,7 @@ export function Envio() {
               </Stat>
             )}
           </ProgressStats>
-          {lote.status === "em_andamento" && (
+          {lote.status === LOTE_STATUS.EM_ANDAMENTO && (
             <CancelButton onClick={handleCancelarLote}>
               <StopCircle size={16} />
               Cancelar envio
@@ -157,11 +157,11 @@ export function Envio() {
 }
 
 const statusLabels: Record<string, string> = {
-  enviado: "Enviado",
-  erro: "Erro",
-  enviando: "Enviando...",
-  pendente: "Pendente",
-  cancelado: "Cancelado",
+  [ENVIO_STATUS.ENVIADO]: "Enviado",
+  [ENVIO_STATUS.ERRO]: "Erro",
+  [ENVIO_STATUS.ENVIANDO]: "Enviando...",
+  [ENVIO_STATUS.PENDENTE]: "Pendente",
+  [ENVIO_STATUS.CANCELADO]: "Cancelado",
 };
 
 const EnvioCardItem = memo(function EnvioCardItem({
@@ -174,11 +174,11 @@ const EnvioCardItem = memo(function EnvioCardItem({
   return (
     <EnvioCard $status={envio.status}>
       <StatusIcon>
-        {envio.status === "enviado" && <CheckCircle size={18} color="#16a34a" />}
-        {envio.status === "erro" && <XCircle size={18} color="#dc2626" />}
-        {envio.status === "enviando" && <Loader size={18} color="#f59e0b" className="spin" />}
-        {envio.status === "pendente" && <Clock size={18} color="#9ca3af" />}
-        {envio.status === "cancelado" && <StopCircle size={18} color="#9ca3af" />}
+        {envio.status === ENVIO_STATUS.ENVIADO && <CheckCircle size={18} color="#16a34a" />}
+        {envio.status === ENVIO_STATUS.ERRO && <XCircle size={18} color="#dc2626" />}
+        {envio.status === ENVIO_STATUS.ENVIANDO && <Loader size={18} color="#f59e0b" className="spin" />}
+        {envio.status === ENVIO_STATUS.PENDENTE && <Clock size={18} color="#9ca3af" />}
+        {envio.status === ENVIO_STATUS.CANCELADO && <StopCircle size={18} color="#9ca3af" />}
       </StatusIcon>
       <EnvioInfo>
         <EnvioNome>{envio.nomeContato}</EnvioNome>
@@ -189,7 +189,7 @@ const EnvioCardItem = memo(function EnvioCardItem({
         <StatusBadge $status={envio.status}>
           {statusLabels[envio.status] || envio.status}
         </StatusBadge>
-        {envio.status === "pendente" && (
+        {envio.status === ENVIO_STATUS.PENDENTE && (
           <CancelEnvioButton
             onClick={() => onCancel(envio.id)}
             title="Cancelar este envio"

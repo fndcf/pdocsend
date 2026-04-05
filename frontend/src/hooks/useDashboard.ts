@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import apiClient from "@/services/apiClient";
+import { queryKeys } from "@/types";
 
 export interface DashboardData {
   enviadosHoje: number;
@@ -12,7 +13,7 @@ export interface DashboardData {
 
 export function useDashboard() {
   const { data } = useQuery({
-    queryKey: ["dashboard"],
+    queryKey: queryKeys.dashboard,
     queryFn: () => apiClient.get<DashboardData>("/envios/dashboard"),
   });
 

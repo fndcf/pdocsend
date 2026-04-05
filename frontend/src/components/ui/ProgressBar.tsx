@@ -8,7 +8,7 @@ interface ProgressBarProps {
 
 export function ProgressBar({ percent, done = false, height = 8 }: ProgressBarProps) {
   return (
-    <Background $height={height}>
+    <Background $height={height} role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
       <Fill $percent={percent} $done={done} $height={height} />
     </Background>
   );
