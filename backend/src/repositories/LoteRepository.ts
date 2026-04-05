@@ -1,19 +1,8 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
+import { ILoteRepository, CriarLoteData, ContadoresLote } from "../interfaces";
 
-interface CriarLoteData {
-  totalEnvios: number;
-  pdfOrigem: string;
-  criadoPor: string;
-}
-
-interface ContadoresLote {
-  enviados: number;
-  erros: number;
-  cancelados: number;
-}
-
-class LoteRepository {
+class LoteRepository implements ILoteRepository {
   private getLoteRef(tenantId: string, loteId?: string) {
     const col = db.collection(`tenants/${tenantId}/lotes`);
     return loteId ? col.doc(loteId) : col.doc();

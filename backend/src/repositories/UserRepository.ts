@@ -1,8 +1,9 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
 import { User } from "../models/Tenant";
+import { IUserRepository } from "../interfaces";
 
-class UserRepository {
+class UserRepository implements IUserRepository {
   private collection = db.collection("users");
 
   async buscarPorId(uid: string): Promise<(User & { id: string }) | null> {

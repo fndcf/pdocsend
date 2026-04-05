@@ -1,23 +1,8 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
-import { Imovel } from "../models/Imovel";
+import { IEnvioRepository, CriarEnvioData, ContadoresEnvio } from "../interfaces";
 
-interface CriarEnvioData {
-  telefone: string;
-  nome: string;
-  nomeContato: string;
-  imoveis: Imovel[];
-  mensagem?: string;
-}
-
-interface ContadoresEnvio {
-  enviados: number;
-  erros: number;
-  cancelados: number;
-  total: number;
-}
-
-class EnvioRepository {
+class EnvioRepository implements IEnvioRepository {
   private getEnvioRef(tenantId: string, loteId: string, envioId?: string) {
     const col = db.collection(`tenants/${tenantId}/lotes/${loteId}/envios`);
     return envioId ? col.doc(envioId) : col.doc();

@@ -2,8 +2,9 @@ import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
 import { Imovel } from "../models/Imovel";
 import { gerarHashImovel } from "../utils/textUtils";
+import { IImovelEnviadoRepository } from "../interfaces";
 
-class ImovelEnviadoRepository {
+class ImovelEnviadoRepository implements IImovelEnviadoRepository {
   private getCollection(tenantId: string) {
     return db.collection(`tenants/${tenantId}/imoveis_enviados`);
   }

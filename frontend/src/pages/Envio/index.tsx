@@ -1,4 +1,4 @@
-import { useCallback, memo } from "react";
+import { useCallback, memo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import styled from "styled-components";
@@ -33,8 +33,17 @@ export function Envio() {
   // Superadmin pode ver lotes de qualquer tenant via query param
   const tenantId = searchParams.get("tenant") || userTenantId || "";
 
-  const { lote, loteNotFound, envios, progresso, finalizado, cancelados, pendentes } =
+  const { lote, loteNotFound, envios: rawEnvios, progresso, finalizado, cancelados, pendentes } =
     useLoteProgress(tenantId, loteId);
+
+  // Optimistic updates: IDs marcados como cancelados antes do onSnapshot atualizar
+  const [optimisticCancelados, setOptimisticCancelados] = useState<Set<string>>(new Set());
+
+  const envios = rawEnvios.map((e) =>
+    optimisticCancelados.has(e.id) && e.status === ENVIO_STATUS.PENDENTE
+      ? { ...e, status: ENVIO_STATUS.CANCELADO as typeof e.status }
+      : e
+  );
 
   const cancelarLoteMutation = useMutation({
     mutationFn: () => apiClient.post(`/envios/lotes/${loteId}/cancelar`, {}),
@@ -44,7 +53,17 @@ export function Envio() {
   const cancelarEnvioMutation = useMutation({
     mutationFn: (envioId: string) =>
       apiClient.post(`/envios/lotes/${loteId}/envios/${envioId}/cancelar`, {}),
-    onError: () => alert("Erro ao cancelar envio"),
+    onMutate: (envioId: string) => {
+      setOptimisticCancelados((prev) => new Set(prev).add(envioId));
+    },
+    onError: (_err, envioId: string) => {
+      setOptimisticCancelados((prev) => {
+        const next = new Set(prev);
+        next.delete(envioId);
+        return next;
+      });
+      alert("Erro ao cancelar envio");
+    },
   });
 
   const handleCancelarLote = useCallback(() => {

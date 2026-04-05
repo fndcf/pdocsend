@@ -1,8 +1,9 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
 import { Tenant } from "../models/Tenant";
+import { ITenantRepository } from "../interfaces";
 
-class TenantRepository {
+class TenantRepository implements ITenantRepository {
   private collection = db.collection("tenants");
 
   async buscarPorId(tenantId: string): Promise<(Tenant & { id: string }) | null> {
