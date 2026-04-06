@@ -109,7 +109,7 @@ jobs:
       - name: Deploy to Firebase Staging
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --project staging
+          args: deploy --project staging --force
         env:
           GCP_SA_KEY: ${{ secrets.STAGING_FIREBASE_SERVICE_ACCOUNT }}
 
@@ -150,6 +150,6 @@ jobs:
       - name: Deploy to Firebase Production
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --project production
+          args: deploy --project production --force
         env:
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
