@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "pdocsend"
+    "default": "pdocsend",
+    "production": "pdocsend",
+    "staging": "pdocsend-staging"
   }
 }

@@ -15,6 +15,7 @@ import loteRepository from "../repositories/LoteRepository";
 import envioRepository from "../repositories/EnvioRepository";
 import imovelEnviadoRepository from "../repositories/ImovelEnviadoRepository";
 import { db } from "../config/firebase";
+import { CLOUD_TASKS_CONFIG } from "../config/cloudTasks";
 
 class EnvioController {
   /**
@@ -105,7 +106,7 @@ class EnvioController {
       }
 
       // 3. Criar tasks no Cloud Tasks
-      const functionUrl = `https://southamerica-east1-pdocsend.cloudfunctions.net/processarEnvio`;
+      const functionUrl = CLOUD_TASKS_CONFIG.processarEnvioUrl;
 
       try {
         await filaEnvioService.criarTasks(payloads, functionUrl);
