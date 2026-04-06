@@ -139,12 +139,14 @@ Confirmar envio ──POST /api/envios/confirmar──► EnvioController.confir
                                                                     ▼
                                                             processarEnvio (Cloud Function)
                                                                     │
-                                                                    ├── Verifica idempotencia
-                                                                    ├── Verifica se lote cancelado
-                                                                    ├── MessageBuilder.montarMensagem()
-                                                                    ├── ZApiService.enviarMensagem()
-                                                                    ├── Atualiza status no Firestore
-                                                                    └── DeduplicacaoService.registrarEnviados()
+                                                                    └── EnvioProcessorService.processar()
+                                                                            │
+                                                                            ├── Verifica idempotencia
+                                                                            ├── Verifica se lote cancelado
+                                                                            ├── MessageBuilder.montarMensagem()
+                                                                            ├── ZApiService.enviarMensagem()
+                                                                            ├── Atualiza status no Firestore
+                                                                            └── DeduplicacaoService.registrarEnviados()
 ```
 
 ### 3. Progresso em Tempo Real
@@ -434,7 +436,7 @@ Implementado no `PdfController.processar()`:
 
 ## Estrutura de Testes
 
-### Backend (123 testes unitarios + 23 testes de rules, 12 suites)
+### Backend (133 testes unitarios + 23 testes de rules, 13 suites)
 
 ```
 src/__tests__/
