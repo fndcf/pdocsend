@@ -1,6 +1,7 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
 import { Imovel } from "../models/Imovel";
+import { ImovelEnviado } from "../models/Envio";
 import { gerarHashImovel } from "../utils/textUtils";
 import { IImovelEnviadoRepository } from "../interfaces";
 
@@ -80,12 +81,12 @@ class ImovelEnviadoRepository implements IImovelEnviadoRepository {
     return snapshot.size;
   }
 
-  async buscarPorTelefone(tenantId: string, telefone: string) {
+  async buscarPorTelefone(tenantId: string, telefone: string): Promise<(ImovelEnviado & { id: string })[]> {
     const snapshot = await this.getCollection(tenantId)
       .where("telefone", "==", telefone)
       .get();
 
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as (ImovelEnviado & { id: string })[];
   }
 }
 

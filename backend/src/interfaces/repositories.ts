@@ -1,12 +1,23 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { Tenant, User } from "../models/Tenant";
+import { Lote, Envio, ImovelEnviado } from "../models/Envio";
 import { Imovel } from "../models/Imovel";
+
+// --- Paginação genérica ---
+
+export interface PaginatedResult<T> {
+  items: T[];
+  hasMore: boolean;
+  nextCursor?: string;
+}
 
 // --- Tenant Repository ---
 
 export interface ITenantRepository {
   buscarPorId(tenantId: string): Promise<(Tenant & { id: string }) | null>;
   listarTodos(): Promise<(Tenant & { id: string })[]>;
+  listarPaginado(limite?: number, cursor?: string): Promise<PaginatedResult<Tenant & { id: string }>>;
+  listarResumo(): Promise<Array<{ id: string; nome: string; limiteDiario: number; mensagemTemplate: Tenant["mensagemTemplate"]; criadoEm: Timestamp }>>;
   criar(data: Omit<Tenant, "criadoEm">): Promise<string>;
   atualizar(tenantId: string, data: Record<string, unknown>): Promise<void>;
 }
@@ -16,7 +27,7 @@ export interface ITenantRepository {
 export interface IUserRepository {
   buscarPorId(uid: string): Promise<(User & { id: string }) | null>;
   listarPorTenant(): Promise<Record<string, Array<{ uid: string; email: string; nome: string; role: string }>>>;
-  listarTodos(): Promise<Map<string, { tenantId: string; role: string }>>;
+  listarPendentesIds(): Promise<Map<string, { tenantId: string; role: string }>>;
   criar(uid: string, data: Omit<User, "criadoEm">): Promise<void>;
 }
 
@@ -35,14 +46,14 @@ export interface ContadoresLote {
 }
 
 export interface ILoteRepository {
-  buscarPorId(tenantId: string, loteId: string): Promise<Record<string, unknown> | null>;
-  listarPorTenant(tenantId: string, limite?: number, cursor?: string): Promise<{ lotes: Record<string, unknown>[]; hasMore: boolean; nextCursor?: string }>;
-  listarDesde(tenantId: string, desde: Timestamp): Promise<Record<string, unknown>[]>;
+  buscarPorId(tenantId: string, loteId: string): Promise<(Lote & { id: string }) | null>;
+  listarPorTenant(tenantId: string, limite?: number, cursor?: string): Promise<{ lotes: (Lote & { id: string })[]; hasMore: boolean; nextCursor?: string }>;
+  listarDesde(tenantId: string, desde: Timestamp): Promise<(Lote & { id: string })[]>;
   criar(tenantId: string, data: CriarLoteData): Promise<string>;
   atualizarStatus(tenantId: string, loteId: string, status: string): Promise<void>;
   atualizarContadores(tenantId: string, loteId: string, contadores: Partial<ContadoresLote>): Promise<void>;
   finalizar(tenantId: string, loteId: string, contadores: ContadoresLote): Promise<void>;
-  listarRecentes(tenantId: string, limite?: number): Promise<Record<string, unknown>[]>;
+  listarRecentes(tenantId: string, limite?: number): Promise<(Lote & { id: string })[]>;
 }
 
 // --- Envio Repository ---
@@ -63,8 +74,8 @@ export interface ContadoresEnvio {
 }
 
 export interface IEnvioRepository {
-  buscarPorId(tenantId: string, loteId: string, envioId: string): Promise<Record<string, unknown> | null>;
-  listarPorLote(tenantId: string, loteId: string): Promise<Record<string, unknown>[]>;
+  buscarPorId(tenantId: string, loteId: string, envioId: string): Promise<(Envio & { id: string }) | null>;
+  listarPorLote(tenantId: string, loteId: string, limite?: number, cursor?: string): Promise<{ envios: (Envio & { id: string })[]; hasMore: boolean; nextCursor?: string }>;
   criar(tenantId: string, loteId: string, data: CriarEnvioData): Promise<string>;
   atualizarStatus(tenantId: string, loteId: string, envioId: string, status: string, extra?: Record<string, unknown>): Promise<void>;
   marcarEnviado(tenantId: string, loteId: string, envioId: string, mensagem: string): Promise<void>;
@@ -78,6 +89,6 @@ export interface IEnvioRepository {
 export interface IImovelEnviadoRepository {
   buscarHashesExistentes(tenantId: string, hashes: string[]): Promise<Set<string>>;
   registrarEnviados(tenantId: string, telefone: string, imoveis: Imovel[], loteId: string, envioId: string): Promise<void>;
-  buscarPorTelefone(tenantId: string, telefone: string): Promise<Record<string, unknown>[]>;
+  buscarPorTelefone(tenantId: string, telefone: string): Promise<(ImovelEnviado & { id: string })[]>;
   limparAntigos(tenantId: string, anteriorA: Timestamp): Promise<number>;
 }

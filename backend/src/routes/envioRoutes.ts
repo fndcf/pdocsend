@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth, AuthRequest } from "../middlewares/auth";
 import { validate } from "../middlewares/validate";
+import userRateLimit from "../middlewares/userRateLimit";
 import envioController from "../controllers/EnvioController";
 import {
   confirmarEnvioSchema,
@@ -15,12 +16,13 @@ const router = Router();
 router.post(
   "/confirmar",
   requireAuth,
+  userRateLimit,
   validate({ body: confirmarEnvioSchema }),
   (req, res) => envioController.confirmar(req as AuthRequest, res)
 );
 
 // GET /api/envios/lotes - Listar lotes de envio
-router.get("/lotes", requireAuth, (req, res) =>
+router.get("/lotes", requireAuth, userRateLimit, (req, res) =>
   envioController.listarLotes(req as AuthRequest, res)
 );
 
@@ -28,6 +30,7 @@ router.get("/lotes", requireAuth, (req, res) =>
 router.get(
   "/lotes/:id",
   requireAuth,
+  userRateLimit,
   validate({ params: cancelarLoteParamsSchema }),
   (req, res) => envioController.detalhesLote(req as AuthRequest, res)
 );
@@ -36,6 +39,7 @@ router.get(
 router.post(
   "/lotes/:id/cancelar",
   requireAuth,
+  userRateLimit,
   validate({ params: cancelarLoteParamsSchema }),
   (req, res) => envioController.cancelarLote(req as AuthRequest, res)
 );
@@ -44,6 +48,7 @@ router.post(
 router.post(
   "/lotes/:id/envios/:envioId/cancelar",
   requireAuth,
+  userRateLimit,
   validate({ params: cancelarEnvioParamsSchema }),
   (req, res) => envioController.cancelarEnvio(req as AuthRequest, res)
 );
@@ -52,12 +57,13 @@ router.post(
 router.get(
   "/contato/:telefone",
   requireAuth,
+  userRateLimit,
   validate({ params: contatoTelefoneParamsSchema }),
   (req, res) => envioController.historicoPorContato(req as AuthRequest, res)
 );
 
 // GET /api/envios/dashboard - Métricas do dashboard
-router.get("/dashboard", requireAuth, (req, res) =>
+router.get("/dashboard", requireAuth, userRateLimit, (req, res) =>
   envioController.dashboard(req as AuthRequest, res)
 );
 

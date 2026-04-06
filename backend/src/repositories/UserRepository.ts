@@ -13,7 +13,11 @@ class UserRepository implements IUserRepository {
   }
 
   async listarPorTenant(): Promise<Record<string, Array<{ uid: string; email: string; nome: string; role: string }>>> {
-    const snapshot = await this.collection.where("role", "!=", "superadmin").get();
+    const snapshot = await this.collection
+      .where("role", "!=", "superadmin")
+      .select("email", "nome", "role", "tenantId")
+      .get();
+
     const usersByTenant: Record<string, Array<{ uid: string; email: string; nome: string; role: string }>> = {};
 
     for (const doc of snapshot.docs) {
@@ -31,8 +35,11 @@ class UserRepository implements IUserRepository {
     return usersByTenant;
   }
 
-  async listarTodos(): Promise<Map<string, { tenantId: string; role: string }>> {
-    const snapshot = await this.collection.get();
+  async listarPendentesIds(): Promise<Map<string, { tenantId: string; role: string }>> {
+    const snapshot = await this.collection
+      .select("tenantId", "role")
+      .get();
+
     const map = new Map<string, { tenantId: string; role: string }>();
     for (const doc of snapshot.docs) {
       const data = doc.data();

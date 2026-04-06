@@ -35,14 +35,26 @@ interface MonitoramentoItem {
   }>;
 }
 
+interface PaginatedClientes {
+  clientes: Cliente[];
+  hasMore: boolean;
+  nextCursor?: string;
+}
+
+interface PaginatedMonitoramento {
+  stats: MonitoramentoItem[];
+  hasMore: boolean;
+  nextCursor?: string;
+}
+
 type Tab = "clientes" | "pendentes" | "monitoramento";
 
 export function useAdminData(tab: Tab) {
   const queryClient = useQueryClient();
 
-  const { data: clientes = [], isLoading: loadingClientes, error: errorClientes } = useQuery({
+  const { data: clientesData, isLoading: loadingClientes, error: errorClientes } = useQuery({
     queryKey: queryKeys.admin.clientes,
-    queryFn: () => apiClient.get<Cliente[]>("/admin/clientes"),
+    queryFn: () => apiClient.get<PaginatedClientes>("/admin/clientes"),
     enabled: tab === "clientes",
   });
 
@@ -52,11 +64,14 @@ export function useAdminData(tab: Tab) {
     // Sempre buscar pendentes (para o badge de contagem)
   });
 
-  const { data: monitoramento = [], isLoading: loadingMonitoramento, error: errorMonitoramento } = useQuery({
+  const { data: monitoramentoData, isLoading: loadingMonitoramento, error: errorMonitoramento } = useQuery({
     queryKey: queryKeys.admin.monitoramento,
-    queryFn: () => apiClient.get<MonitoramentoItem[]>("/admin/monitoramento"),
+    queryFn: () => apiClient.get<PaginatedMonitoramento>("/admin/monitoramento"),
     enabled: tab === "monitoramento",
   });
+
+  const clientes = clientesData?.clientes || [];
+  const monitoramento = monitoramentoData?.stats || [];
 
   const loading =
     (tab === "clientes" && loadingClientes) ||

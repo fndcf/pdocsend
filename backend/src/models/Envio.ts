@@ -21,7 +21,7 @@ export interface Envio {
   nomeContato: string;
   imoveis: Imovel[];
   mensagem: string;
-  status: "pendente" | "enviando" | "enviado" | "erro";
+  status: "pendente" | "enviando" | "enviado" | "erro" | "cancelado";
   erro: string;
   enviadoEm: Timestamp | null;
   criadoEm: Timestamp;

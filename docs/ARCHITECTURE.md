@@ -1,7 +1,7 @@
 # Arquitetura - PDocSend
 
 > Documento de referencia para manter consistencia em novas implementacoes.
-> Ultima atualizacao: 04/04/2026
+> Ultima atualizacao: 05/04/2026
 
 ---
 
@@ -434,7 +434,7 @@ Implementado no `PdfController.processar()`:
 
 ## Estrutura de Testes
 
-### Backend (122 testes unitarios + 23 testes de rules, 13 suites)
+### Backend (123 testes unitarios + 23 testes de rules, 12 suites)
 
 ```
 src/__tests__/
@@ -463,7 +463,7 @@ src/__tests__/
 > **Nota:** Testes de rules rodam separados com `npm run test:rules` (requer emulador Firestore).
 > Testes unitarios rodam com `npm test` (sem emulador).
 
-### Frontend (69 testes, 6 suites)
+### Frontend (81 testes, 8 suites)
 
 ```
 src/__tests__/
@@ -937,14 +937,79 @@ src/__tests__/
 | Firestore Rules isolam por tenant | Funcao `isTenantMember(tenantId)` valida que usuario pertence ao tenant |
 | Client nao escreve no Firestore | Todas as writes sao via backend (API). Rules so permitem read. |
 | CORS restrito | Apenas dominios em `ALLOWED_ORIGINS` podem fazer requests |
-| Rate limiting ativo | 100 req/min global, 10/min para upload de PDF |
+| Rate limiting ativo | 100 req/min global por IP, 10/min upload, 60/min por usuario |
+| Credenciais Z-API criptografadas | AES-256-GCM via `utils/crypto.ts`. Backward compatible com dados existentes |
 | Credenciais no `.env` | Nunca no codigo. `.env` esta no `.gitignore` |
 | Secrets no CI via GitHub | `FIREBASE_SERVICE_ACCOUNT` e `VITE_FIREBASE_*` como secrets do repo |
+| Audit logging | Acoes admin (criar/editar/cleanup) logadas com `audit: true` no Cloud Logging |
 | Request ID | Middleware `requestId` adiciona UUID em toda request. Header `x-request-id` no response para correlacao de logs |
 | Dados sensiveis nos logs | Logger mascara telefone, nome, email em producao (LGPD). Ex: `55119****1818`, `Den***` |
 | Limite diario atomico | Verificacao + criacao de lote em `db.runTransaction()` para evitar race conditions |
 | Error Boundary | Componente React que captura erros e mostra tela amigavel em vez de tela branca |
 | Firestore Rules testadas | 23 testes automatizados validam isolamento de tenant, superadmin e deny writes |
+
+---
+
+### Escalabilidade — Implementacoes
+
+> Patterns implementados para suportar de poucos tenants ate milhares.
+
+#### Cache em Memoria (`utils/cache.ts`)
+
+`MemoryCache<T>` com TTL e tamanho maximo. Usado em:
+- **Auth middleware**: Cache de user data (role, tenantId) com TTL 5min. Evita 1 read Firestore por request.
+- **processarEnvio**: Cache de tenant config com TTL 10min. Evita 1 read por mensagem enviada.
+
+```typescript
+import MemoryCache from "../utils/cache";
+
+const cache = new MemoryCache<UserData>(5 * 60); // 5 minutos TTL
+cache.set(uid, data);
+const cached = cache.get(uid); // undefined se expirou
+```
+
+**Invalidacao**: Chamar `invalidateUserCache(uid)` quando role ou tenantId mudar (ex: admin cria cliente).
+
+#### Paginacao Cursor-Based
+
+Endpoints admin paginados com cursor (nao offset):
+- `GET /admin/clientes?cursor=xxx&limite=20`
+- `GET /admin/monitoramento?cursor=xxx&limite=20`
+- Cleanup processa em batches de 50 tenants
+
+Repositories com `listarPaginado()` retornam `PaginatedResult<T>`:
+```typescript
+interface PaginatedResult<T> {
+  items: T[];
+  hasMore: boolean;
+  nextCursor?: string;
+}
+```
+
+#### Field Projection (`select()`)
+
+Queries que nao precisam de todos os campos usam `.select()`:
+- `UserRepository.listarPendentesIds()` → `select("tenantId", "role")`
+- `UserRepository.listarPorTenant()` → `select("email", "nome", "role", "tenantId")`
+- `TenantRepository.listarResumo()` → `select("nome", "limiteDiario", "mensagemTemplate", "criadoEm")`
+- `LoteRepository.listarRecentes()` → `select("pdfOrigem", "totalEnvios", "enviados", "erros", "status", "criadoEm")`
+- `EnvioRepository.contarPorStatus()` → `select("status")`
+
+#### Rate Limiting por Usuario
+
+Middleware `userRateLimit` (60 req/min por uid) aplicado em rotas de envio. Usa uid como chave apos autenticacao, protege contra abuso por usuario especifico.
+
+#### Criptografia de Credenciais (`utils/crypto.ts`)
+
+AES-256-GCM para tokens Z-API. Chave via `ZAPI_ENCRYPTION_KEY` (env var ou Firebase Secret Manager).
+- `encrypt(plaintext)` → `enc:iv:authTag:ciphertext`
+- `decrypt(ciphertext)` → plaintext (backward compatible: se nao tem prefixo `enc:`, retorna direto)
+
+Para ativar em producao:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+firebase functions:secrets:set ZAPI_ENCRYPTION_KEY
+```
 
 ---
 

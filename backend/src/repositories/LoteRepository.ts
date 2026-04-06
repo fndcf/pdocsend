@@ -1,5 +1,6 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
+import { Lote } from "../models/Envio";
 import { ILoteRepository, CriarLoteData, ContadoresLote } from "../interfaces";
 
 class LoteRepository implements ILoteRepository {
@@ -8,13 +9,13 @@ class LoteRepository implements ILoteRepository {
     return loteId ? col.doc(loteId) : col.doc();
   }
 
-  async buscarPorId(tenantId: string, loteId: string) {
+  async buscarPorId(tenantId: string, loteId: string): Promise<(Lote & { id: string }) | null> {
     const doc = await this.getLoteRef(tenantId, loteId).get();
     if (!doc.exists) return null;
-    return { id: doc.id, ...doc.data() };
+    return { id: doc.id, ...doc.data() } as Lote & { id: string };
   }
 
-  async listarPorTenant(tenantId: string, limite = 20, cursor?: string) {
+  async listarPorTenant(tenantId: string, limite = 20, cursor?: string): Promise<{ lotes: (Lote & { id: string })[]; hasMore: boolean; nextCursor?: string }> {
     let query = db
       .collection(`tenants/${tenantId}/lotes`)
       .orderBy("criadoEm", "desc");
@@ -33,19 +34,19 @@ class LoteRepository implements ILoteRepository {
     const nextCursor = hasMore ? docs[docs.length - 1].id : undefined;
 
     return {
-      lotes: docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+      lotes: docs.map((doc) => ({ id: doc.id, ...doc.data() })) as (Lote & { id: string })[],
       hasMore,
       nextCursor,
     };
   }
 
-  async listarDesde(tenantId: string, desde: Timestamp) {
+  async listarDesde(tenantId: string, desde: Timestamp): Promise<(Lote & { id: string })[]> {
     const snapshot = await db
       .collection(`tenants/${tenantId}/lotes`)
       .where("criadoEm", ">=", desde)
       .get();
 
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as (Lote & { id: string })[];
   }
 
   async criar(tenantId: string, data: CriarLoteData): Promise<string> {
@@ -78,14 +79,15 @@ class LoteRepository implements ILoteRepository {
     });
   }
 
-  async listarRecentes(tenantId: string, limite = 5) {
+  async listarRecentes(tenantId: string, limite = 5): Promise<(Lote & { id: string })[]> {
     const snapshot = await db
       .collection(`tenants/${tenantId}/lotes`)
       .orderBy("criadoEm", "desc")
       .limit(limite)
+      .select("pdfOrigem", "totalEnvios", "enviados", "erros", "status", "criadoEm")
       .get();
 
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as (Lote & { id: string })[];
   }
 }
 

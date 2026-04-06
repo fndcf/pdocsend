@@ -1,5 +1,6 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
+import { Envio } from "../models/Envio";
 import { IEnvioRepository, CriarEnvioData, ContadoresEnvio } from "../interfaces";
 
 class EnvioRepository implements IEnvioRepository {
@@ -8,19 +9,41 @@ class EnvioRepository implements IEnvioRepository {
     return envioId ? col.doc(envioId) : col.doc();
   }
 
-  async buscarPorId(tenantId: string, loteId: string, envioId: string) {
-    const doc = await this.getEnvioRef(tenantId, loteId, envioId).get();
-    if (!doc.exists) return null;
-    return { id: doc.id, ...doc.data() };
+  private getEnvioCollection(tenantId: string, loteId: string) {
+    return db.collection(`tenants/${tenantId}/lotes/${loteId}/envios`);
   }
 
-  async listarPorLote(tenantId: string, loteId: string) {
-    const snapshot = await db
-      .collection(`tenants/${tenantId}/lotes/${loteId}/envios`)
-      .orderBy("criadoEm", "asc")
-      .get();
+  async buscarPorId(tenantId: string, loteId: string, envioId: string): Promise<(Envio & { id: string }) | null> {
+    const doc = await this.getEnvioRef(tenantId, loteId, envioId).get();
+    if (!doc.exists) return null;
+    return { id: doc.id, ...doc.data() } as Envio & { id: string };
+  }
 
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  async listarPorLote(
+    tenantId: string,
+    loteId: string,
+    limite = 100,
+    cursor?: string
+  ): Promise<{ envios: (Envio & { id: string })[]; hasMore: boolean; nextCursor?: string }> {
+    let query = this.getEnvioCollection(tenantId, loteId)
+      .orderBy("criadoEm", "asc");
+
+    if (cursor) {
+      const cursorDoc = await this.getEnvioRef(tenantId, loteId, cursor).get();
+      if (cursorDoc.exists) {
+        query = query.startAfter(cursorDoc);
+      }
+    }
+
+    const snapshot = await query.limit(limite + 1).get();
+    const docs = snapshot.docs.slice(0, limite);
+    const hasMore = snapshot.docs.length > limite;
+
+    return {
+      envios: docs.map((doc) => ({ id: doc.id, ...doc.data() })) as (Envio & { id: string })[],
+      hasMore,
+      nextCursor: hasMore ? docs[docs.length - 1].id : undefined,
+    };
   }
 
   async criar(tenantId: string, loteId: string, data: CriarEnvioData): Promise<string> {
@@ -73,8 +96,7 @@ class EnvioRepository implements IEnvioRepository {
   }
 
   async cancelarPendentes(tenantId: string, loteId: string): Promise<number> {
-    const snapshot = await db
-      .collection(`tenants/${tenantId}/lotes/${loteId}/envios`)
+    const snapshot = await this.getEnvioCollection(tenantId, loteId)
       .where("status", "in", ["pendente", "enviando"])
       .get();
 
@@ -89,8 +111,9 @@ class EnvioRepository implements IEnvioRepository {
   }
 
   async contarPorStatus(tenantId: string, loteId: string): Promise<ContadoresEnvio> {
-    const snapshot = await db
-      .collection(`tenants/${tenantId}/lotes/${loteId}/envios`)
+    // Usa select() para trazer apenas o campo status, reduzindo bandwidth
+    const snapshot = await this.getEnvioCollection(tenantId, loteId)
+      .select("status")
       .get();
 
     let enviados = 0;

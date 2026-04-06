@@ -169,9 +169,9 @@ class EnvioController {
         return;
       }
 
-      const envios = await envioRepository.listarPorLote(tenantId, id);
+      const result = await envioRepository.listarPorLote(tenantId, id);
 
-      ResponseHelper.success(res, { lote, envios });
+      ResponseHelper.success(res, { lote, envios: result.envios });
     } catch (error) {
       logger.error("Erro ao buscar detalhes do lote", { loteId: req.params.id }, error);
       ResponseHelper.internalError(res, "Erro ao buscar detalhes do lote");
@@ -194,7 +194,7 @@ class EnvioController {
         return;
       }
 
-      if ((lote as Record<string, unknown>).status !== "em_andamento") {
+      if (lote.status !== "em_andamento") {
         ResponseHelper.badRequest(res, "Lote não está em andamento");
         return;
       }
@@ -231,7 +231,7 @@ class EnvioController {
         return;
       }
 
-      if ((envio as Record<string, unknown>).status !== "pendente") {
+      if (envio.status !== "pendente") {
         ResponseHelper.badRequest(res, "Apenas envios pendentes podem ser cancelados");
         return;
       }
@@ -247,7 +247,7 @@ class EnvioController {
 
       const lote = await loteRepository.buscarPorId(tenantId, id);
       const processados = contadores.enviados + contadores.erros + contadores.cancelados;
-      if (lote && processados >= ((lote as Record<string, unknown>).totalEnvios as number)) {
+      if (lote && processados >= lote.totalEnvios) {
         await loteRepository.finalizar(tenantId, id, contadores);
       }
 
@@ -279,7 +279,7 @@ class EnvioController {
       // Agrupar por loteId para buscar detalhes
       const loteIds = new Set<string>();
       for (const imovel of imoveis) {
-        loteIds.add((imovel as Record<string, unknown>).loteId as string);
+        loteIds.add(imovel.loteId);
       }
 
       const lotes: Record<string, unknown> = {};
@@ -339,7 +339,7 @@ class EnvioController {
 
       let enviadosHoje = 0;
       for (const lote of lotesHoje) {
-        enviadosHoje += (lote as Record<string, unknown>).enviados as number || 0;
+        enviadosHoje += lote.enviados || 0;
       }
 
       // Buscar lotes do mês
@@ -348,15 +348,14 @@ class EnvioController {
       let enviadosMes = 0;
       let errosMes = 0;
       let totalPdfs = 0;
-      let ultimoEnvio: unknown = null;
+      let ultimoEnvio: Timestamp | null = null;
 
       for (const lote of lotesMes) {
-        const data = lote as Record<string, unknown>;
-        enviadosMes += data.enviados as number || 0;
-        errosMes += data.erros as number || 0;
+        enviadosMes += lote.enviados || 0;
+        errosMes += lote.erros || 0;
         totalPdfs++;
-        if (!ultimoEnvio || (data.criadoEm && data.criadoEm > (ultimoEnvio as FirebaseFirestore.Timestamp))) {
-          ultimoEnvio = data.criadoEm;
+        if (!ultimoEnvio || (lote.criadoEm && lote.criadoEm > ultimoEnvio)) {
+          ultimoEnvio = lote.criadoEm;
         }
       }
 

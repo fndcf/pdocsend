@@ -5,25 +5,39 @@
 import { Response } from "express";
 import { Timestamp } from "firebase-admin/firestore";
 import { AuthRequest } from "../middlewares/auth";
+import { invalidateUserCache } from "../middlewares/auth";
 import { ResponseHelper } from "../utils/responseHelper";
 import { auth } from "../config/firebase";
 import logger from "../utils/logger";
+import { encrypt } from "../utils/crypto";
 import tenantRepository from "../repositories/TenantRepository";
 import userRepository from "../repositories/UserRepository";
 import loteRepository from "../repositories/LoteRepository";
 import imovelEnviadoRepository from "../repositories/ImovelEnviadoRepository";
 
+/**
+ * Registra ação de auditoria no log estruturado.
+ * Em produção, essas entradas são indexadas no Cloud Logging e podem ser
+ * filtradas por severity=INFO e jsonPayload.audit=true.
+ */
+function auditLog(action: string, actor: string, details: Record<string, unknown>): void {
+  logger.info(`[AUDIT] ${action}`, { audit: true, action, actor, ...details });
+}
+
 class AdminController {
   /**
-   * Listar todos os clientes (tenants com usuários)
-   * GET /api/admin/clientes
+   * Listar todos os clientes (tenants com usuários) - PAGINADO
+   * GET /api/admin/clientes?cursor=xxx&limite=20
    */
-  async listarClientes(_req: AuthRequest, res: Response): Promise<void> {
+  async listarClientes(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const tenants = await tenantRepository.listarTodos();
+      const cursor = req.query.cursor as string | undefined;
+      const limite = Math.min(parseInt(req.query.limite as string) || 20, 100);
+
+      const result = await tenantRepository.listarPaginado(limite, cursor);
       const usersByTenant = await userRepository.listarPorTenant();
 
-      const clientes = tenants.map((tenant) => ({
+      const clientes = result.items.map((tenant) => ({
         id: tenant.id,
         nome: tenant.nome,
         mensagemTemplate: tenant.mensagemTemplate,
@@ -33,7 +47,11 @@ class AdminController {
         criadoEm: tenant.criadoEm,
       }));
 
-      ResponseHelper.success(res, clientes);
+      ResponseHelper.success(res, {
+        clientes,
+        hasMore: result.hasMore,
+        nextCursor: result.nextCursor,
+      });
     } catch (error) {
       logger.error("Erro ao listar clientes", {}, error);
       ResponseHelper.internalError(res, "Erro ao listar clientes");
@@ -47,7 +65,7 @@ class AdminController {
   async listarPendentes(_req: AuthRequest, res: Response): Promise<void> {
     try {
       const listResult = await auth.listUsers(100);
-      const usersMap = await userRepository.listarTodos();
+      const usersMap = await userRepository.listarPendentesIds();
 
       const pendentes = listResult.users
         .filter((user) => {
@@ -95,12 +113,12 @@ class AdminController {
         return;
       }
 
-      // Criar tenant
+      // Criar tenant (credenciais Z-API criptografadas)
       const tenantId = await tenantRepository.criar({
         nome,
         zapiInstanceId,
-        zapiToken,
-        zapiClientToken,
+        zapiToken: encrypt(zapiToken),
+        zapiClientToken: encrypt(zapiClientToken),
         mensagemTemplate: {
           nomeCorretor,
           nomeEmpresa,
@@ -118,7 +136,10 @@ class AdminController {
         role: "admin",
       });
 
-      logger.info("Cliente criado via admin", { tenantId, uid, nome });
+      // Invalidar cache do usuário (agora tem tenantId)
+      invalidateUserCache(uid);
+
+      auditLog("CRIAR_CLIENTE", req.user.uid, { tenantId, uid, nome });
 
       ResponseHelper.created(res, { tenantId, uid, nome }, "Cliente configurado com sucesso");
     } catch (error) {
@@ -146,8 +167,8 @@ class AdminController {
       const updateData: Record<string, unknown> = {};
       if (nome) updateData.nome = nome;
       if (zapiInstanceId) updateData.zapiInstanceId = zapiInstanceId;
-      if (zapiToken) updateData.zapiToken = zapiToken;
-      if (zapiClientToken) updateData.zapiClientToken = zapiClientToken;
+      if (zapiToken) updateData.zapiToken = encrypt(zapiToken);
+      if (zapiClientToken) updateData.zapiClientToken = encrypt(zapiClientToken);
       if (limiteDiario) updateData.limiteDiario = limiteDiario;
       if (nomeCorretor || nomeEmpresa || cargo || textoPersonalizado !== undefined) {
         const currentTemplate = tenant.mensagemTemplate || {};
@@ -161,7 +182,10 @@ class AdminController {
 
       await tenantRepository.atualizar(id, updateData);
 
-      logger.info("Cliente atualizado", { tenantId: id });
+      auditLog("EDITAR_CLIENTE", req.user.uid, {
+        tenantId: id,
+        campos: Object.keys(updateData),
+      });
 
       ResponseHelper.success(res, null, "Cliente atualizado");
     } catch (error) {
@@ -171,46 +195,57 @@ class AdminController {
   }
 
   /**
-   * Monitoramento - envios recentes de todos os tenants
-   * GET /api/admin/monitoramento
+   * Monitoramento - envios recentes de todos os tenants (PAGINADO, sem N+1)
+   * GET /api/admin/monitoramento?cursor=xxx&limite=20
+   *
+   * Em vez de buscar lotes de cada tenant individualmente (N+1),
+   * paginamos os tenants e buscamos lotes apenas da página atual.
    */
-  async monitoramento(_req: AuthRequest, res: Response): Promise<void> {
+  async monitoramento(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const tenants = await tenantRepository.listarTodos();
-      const stats = [];
+      const cursor = req.query.cursor as string | undefined;
+      const limite = Math.min(parseInt(req.query.limite as string) || 20, 100);
 
-      for (const tenant of tenants) {
-        const lotes = await loteRepository.listarRecentes(tenant.id, 5);
+      const result = await tenantRepository.listarPaginado(limite, cursor);
 
-        let totalEnviados = 0;
-        let totalErros = 0;
+      // Buscar lotes recentes apenas dos tenants da página atual (max N queries, onde N = limite)
+      const stats = await Promise.all(
+        result.items.map(async (tenant) => {
+          const lotes = await loteRepository.listarRecentes(tenant.id, 5);
 
-        const lotesFormatados = lotes.map((lote) => {
-          const data = lote as Record<string, unknown>;
-          totalEnviados += data.enviados as number || 0;
-          totalErros += data.erros as number || 0;
+          let totalEnviados = 0;
+          let totalErros = 0;
+
+          const lotesFormatados = lotes.map((lote) => {
+            totalEnviados += lote.enviados || 0;
+            totalErros += lote.erros || 0;
+            return {
+              id: lote.id,
+              pdfOrigem: lote.pdfOrigem,
+              totalEnvios: lote.totalEnvios,
+              enviados: lote.enviados,
+              erros: lote.erros,
+              status: lote.status,
+              criadoEm: lote.criadoEm,
+            };
+          });
+
           return {
-            id: lote.id,
-            pdfOrigem: data.pdfOrigem,
-            totalEnvios: data.totalEnvios,
-            enviados: data.enviados,
-            erros: data.erros,
-            status: data.status,
-            criadoEm: data.criadoEm,
+            tenantId: tenant.id,
+            nome: tenant.nome,
+            corretor: tenant.mensagemTemplate?.nomeCorretor || "",
+            totalEnviados,
+            totalErros,
+            lotesRecentes: lotesFormatados,
           };
-        });
+        })
+      );
 
-        stats.push({
-          tenantId: tenant.id,
-          nome: tenant.nome,
-          corretor: tenant.mensagemTemplate?.nomeCorretor || "",
-          totalEnviados,
-          totalErros,
-          lotesRecentes: lotesFormatados,
-        });
-      }
-
-      ResponseHelper.success(res, stats);
+      ResponseHelper.success(res, {
+        stats,
+        hasMore: result.hasMore,
+        nextCursor: result.nextCursor,
+      });
     } catch (error) {
       logger.error("Erro ao buscar monitoramento", {}, error);
       ResponseHelper.internalError(res, "Erro ao buscar monitoramento");
@@ -218,7 +253,8 @@ class AdminController {
   }
 
   /**
-   * Limpa registros de imoveis_enviados mais antigos que X meses
+   * Limpa registros de imoveis_enviados mais antigos que X meses.
+   * Processa em batches paginados para não dar timeout com muitos tenants.
    * POST /api/admin/cleanup
    */
   async cleanup(req: AuthRequest, res: Response): Promise<void> {
@@ -228,16 +264,25 @@ class AdminController {
       dataLimite.setMonth(dataLimite.getMonth() - meses);
       const timestamp = Timestamp.fromDate(dataLimite);
 
-      const tenants = await tenantRepository.listarTodos();
+      // Processar em batches de 50 tenants por vez
+      const BATCH_SIZE = 50;
       let totalRemovidos = 0;
+      let cursor: string | undefined;
+      let hasMore = true;
 
-      for (const tenant of tenants) {
-        const tenantId = tenant.id;
-        const removidos = await imovelEnviadoRepository.limparAntigos(tenantId, timestamp);
-        totalRemovidos += removidos;
+      while (hasMore) {
+        const result = await tenantRepository.listarPaginado(BATCH_SIZE, cursor);
+
+        for (const tenant of result.items) {
+          const removidos = await imovelEnviadoRepository.limparAntigos(tenant.id, timestamp);
+          totalRemovidos += removidos;
+        }
+
+        hasMore = result.hasMore;
+        cursor = result.nextCursor;
       }
 
-      logger.info("Cleanup executado", { meses, totalRemovidos });
+      auditLog("CLEANUP", req.user.uid, { meses, totalRemovidos });
 
       ResponseHelper.success(res, {
         meses,

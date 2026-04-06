@@ -106,9 +106,9 @@ describe("Admin", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGet.mockImplementation((url: string) => {
-      if (url === "/admin/clientes") return Promise.resolve(mockClientes);
+      if (url === "/admin/clientes") return Promise.resolve({ clientes: mockClientes, hasMore: false });
       if (url === "/admin/pendentes") return Promise.resolve(mockPendentes);
-      if (url === "/admin/monitoramento") return Promise.resolve(mockMonitoramento);
+      if (url === "/admin/monitoramento") return Promise.resolve({ stats: mockMonitoramento, hasMore: false });
       return Promise.resolve([]);
     });
   });

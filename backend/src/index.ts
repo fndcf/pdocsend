@@ -34,7 +34,7 @@ app.use(
   })
 );
 
-// Rate limiting
+// Rate limiting global por IP
 app.use(
   rateLimit({
     windowMs: 60 * 1000, // 1 minuto

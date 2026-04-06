@@ -37,8 +37,19 @@ jest.mock("../../config/firebase", () => ({
         })),
         limit: jest.fn(() => ({
           get: mockCollectionGet.mockResolvedValue({ docs: [] }),
+          select: jest.fn(() => ({
+            get: mockCollectionGet.mockResolvedValue({ docs: [] }),
+          })),
+        })),
+        startAfter: jest.fn(() => ({
+          limit: jest.fn(() => ({
+            get: mockCollectionGet.mockResolvedValue({ docs: [] }),
+          })),
         })),
         get: mockCollectionGet.mockResolvedValue({ docs: [] }),
+      })),
+      select: jest.fn(() => ({
+        get: mockCollectionGet.mockResolvedValue({ docs: [], size: 0 }),
       })),
       where: mockWhere.mockReturnValue({
         get: mockCollectionGet.mockResolvedValue({ docs: [], empty: true }),

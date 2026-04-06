@@ -8,7 +8,8 @@
       "Bash(wc -l /c/Users/ferna/OneDrive/Documentos/projetos_react/imobi-whatsapp/docs/*.md)",
       "Bash(xargs cat:*)",
       "Bash(firebase emulators:start --only firestore)",
-      "Bash(curl -s http://127.0.0.1:8280)"
+      "Bash(curl -s http://127.0.0.1:8280)",
+      "Bash(npm run:*)"
     ]
   }
 }

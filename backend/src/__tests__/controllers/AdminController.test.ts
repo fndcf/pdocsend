@@ -3,7 +3,12 @@ jest.mock("../../utils/logger", () => ({
   default: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() },
 }));
 
-const mockListarTodos = jest.fn();
+jest.mock("../../utils/crypto", () => ({
+  encrypt: (val: string) => val,
+  decrypt: (val: string) => val,
+}));
+
+const mockListarPaginado = jest.fn();
 const mockBuscarPorId = jest.fn();
 const mockCriar = jest.fn();
 const mockAtualizar = jest.fn();
@@ -11,7 +16,7 @@ const mockAtualizar = jest.fn();
 jest.mock("../../repositories/TenantRepository", () => ({
   __esModule: true,
   default: {
-    listarTodos: mockListarTodos,
+    listarPaginado: mockListarPaginado,
     buscarPorId: mockBuscarPorId,
     criar: mockCriar,
     atualizar: mockAtualizar,
@@ -19,14 +24,14 @@ jest.mock("../../repositories/TenantRepository", () => ({
 }));
 
 const mockListarPorTenant = jest.fn();
-const mockListarTodosUsers = jest.fn();
+const mockListarPendentesIds = jest.fn();
 const mockCriarUser = jest.fn();
 
 jest.mock("../../repositories/UserRepository", () => ({
   __esModule: true,
   default: {
     listarPorTenant: mockListarPorTenant,
-    listarTodos: mockListarTodosUsers,
+    listarPendentesIds: mockListarPendentesIds,
     criar: mockCriarUser,
   },
 }));
@@ -40,6 +45,15 @@ jest.mock("../../repositories/LoteRepository", () => ({
   },
 }));
 
+const mockLimparAntigos = jest.fn();
+
+jest.mock("../../repositories/ImovelEnviadoRepository", () => ({
+  __esModule: true,
+  default: {
+    limparAntigos: mockLimparAntigos,
+  },
+}));
+
 const mockGetUser = jest.fn();
 const mockListUsers = jest.fn();
 
@@ -49,6 +63,11 @@ jest.mock("../../config/firebase", () => ({
     getUser: (...args: unknown[]) => mockGetUser(...args),
     listUsers: (...args: unknown[]) => mockListUsers(...args),
   },
+}));
+
+jest.mock("../../middlewares/auth", () => ({
+  ...jest.requireActual("../../middlewares/auth"),
+  invalidateUserCache: jest.fn(),
 }));
 
 import { Response } from "express";
@@ -70,52 +89,61 @@ describe("AdminController", () => {
   });
 
   describe("listarClientes", () => {
-    it("deve retornar lista de clientes com usuarios", async () => {
-      mockListarTodos.mockResolvedValue([
-        {
-          id: "t1",
-          nome: "Empresa A",
-          zapiInstanceId: "inst-1",
-          limiteDiario: 200,
-          mensagemTemplate: { nomeCorretor: "Carlos", nomeEmpresa: "A", cargo: "corretor" },
-          criadoEm: { seconds: 1700000000 },
-        },
-      ]);
+    it("deve retornar lista de clientes com usuarios (paginado)", async () => {
+      mockListarPaginado.mockResolvedValue({
+        items: [
+          {
+            id: "t1",
+            nome: "Empresa A",
+            zapiInstanceId: "inst-1",
+            limiteDiario: 200,
+            mensagemTemplate: { nomeCorretor: "Carlos", nomeEmpresa: "A", cargo: "corretor" },
+            criadoEm: { seconds: 1700000000 },
+          },
+        ],
+        hasMore: false,
+        nextCursor: undefined,
+      });
       mockListarPorTenant.mockResolvedValue({
         t1: [{ uid: "u1", email: "carlos@a.com", nome: "Carlos", role: "admin" }],
       });
 
-      const req = { user: baseUser } as unknown as AuthRequest;
+      const req = { user: baseUser, query: {} } as unknown as AuthRequest;
       const res = mockRes();
 
       await adminController.listarClientes(req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      const data = (res.json as jest.Mock).mock.calls[0][0].data;
-      expect(data).toHaveLength(1);
-      expect(data[0].nome).toBe("Empresa A");
-      expect(data[0].zapiInstanceId).toBe("***configurado***");
-      expect(data[0].usuarios).toHaveLength(1);
+      const responseData = (res.json as jest.Mock).mock.calls[0][0].data;
+      expect(responseData.clientes).toHaveLength(1);
+      expect(responseData.clientes[0].nome).toBe("Empresa A");
+      expect(responseData.clientes[0].zapiInstanceId).toBe("***configurado***");
+      expect(responseData.clientes[0].usuarios).toHaveLength(1);
+      expect(responseData.hasMore).toBe(false);
     });
 
     it("deve retornar lista vazia quando nao ha tenants", async () => {
-      mockListarTodos.mockResolvedValue([]);
+      mockListarPaginado.mockResolvedValue({
+        items: [],
+        hasMore: false,
+        nextCursor: undefined,
+      });
       mockListarPorTenant.mockResolvedValue({});
 
-      const req = { user: baseUser } as unknown as AuthRequest;
+      const req = { user: baseUser, query: {} } as unknown as AuthRequest;
       const res = mockRes();
 
       await adminController.listarClientes(req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      const data = (res.json as jest.Mock).mock.calls[0][0].data;
-      expect(data).toHaveLength(0);
+      const responseData = (res.json as jest.Mock).mock.calls[0][0].data;
+      expect(responseData.clientes).toHaveLength(0);
     });
 
     it("deve retornar 500 em caso de erro", async () => {
-      mockListarTodos.mockRejectedValue(new Error("DB error"));
+      mockListarPaginado.mockRejectedValue(new Error("DB error"));
 
-      const req = { user: baseUser } as unknown as AuthRequest;
+      const req = { user: baseUser, query: {} } as unknown as AuthRequest;
       const res = mockRes();
 
       await adminController.listarClientes(req, res);
@@ -132,7 +160,7 @@ describe("AdminController", () => {
           { uid: "u2", email: "admin@test.com", metadata: { creationTime: "2026-01-01" } },
         ],
       });
-      mockListarTodosUsers.mockResolvedValue(
+      mockListarPendentesIds.mockResolvedValue(
         new Map([["u2", { tenantId: "t1", role: "admin" }]])
       );
 
@@ -153,7 +181,7 @@ describe("AdminController", () => {
           { uid: "sa1", email: "super@test.com", metadata: { creationTime: "2026-01-01" } },
         ],
       });
-      mockListarTodosUsers.mockResolvedValue(
+      mockListarPendentesIds.mockResolvedValue(
         new Map([["sa1", { tenantId: "", role: "superadmin" }]])
       );
 
@@ -269,14 +297,18 @@ describe("AdminController", () => {
   });
 
   describe("monitoramento", () => {
-    it("deve retornar stats de todos os tenants", async () => {
-      mockListarTodos.mockResolvedValue([
-        {
-          id: "t1",
-          nome: "Empresa A",
-          mensagemTemplate: { nomeCorretor: "Carlos" },
-        },
-      ]);
+    it("deve retornar stats paginados dos tenants", async () => {
+      mockListarPaginado.mockResolvedValue({
+        items: [
+          {
+            id: "t1",
+            nome: "Empresa A",
+            mensagemTemplate: { nomeCorretor: "Carlos" },
+          },
+        ],
+        hasMore: false,
+        nextCursor: undefined,
+      });
       mockListarRecentes.mockResolvedValue([
         {
           id: "lote-1",
@@ -289,17 +321,42 @@ describe("AdminController", () => {
         },
       ]);
 
-      const req = { user: baseUser } as unknown as AuthRequest;
+      const req = { user: baseUser, query: {} } as unknown as AuthRequest;
       const res = mockRes();
 
       await adminController.monitoramento(req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      const data = (res.json as jest.Mock).mock.calls[0][0].data;
-      expect(data).toHaveLength(1);
-      expect(data[0].totalEnviados).toBe(8);
-      expect(data[0].totalErros).toBe(2);
-      expect(data[0].lotesRecentes).toHaveLength(1);
+      const responseData = (res.json as jest.Mock).mock.calls[0][0].data;
+      expect(responseData.stats).toHaveLength(1);
+      expect(responseData.stats[0].totalEnviados).toBe(8);
+      expect(responseData.stats[0].totalErros).toBe(2);
+      expect(responseData.stats[0].lotesRecentes).toHaveLength(1);
+      expect(responseData.hasMore).toBe(false);
+    });
+  });
+
+  describe("cleanup", () => {
+    it("deve limpar registros antigos paginando tenants", async () => {
+      mockListarPaginado.mockResolvedValueOnce({
+        items: [{ id: "t1", nome: "A" }],
+        hasMore: false,
+        nextCursor: undefined,
+      });
+      mockLimparAntigos.mockResolvedValue(5);
+
+      const req = {
+        user: baseUser,
+        body: { meses: "6" },
+      } as unknown as AuthRequest;
+      const res = mockRes();
+
+      await adminController.cleanup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockLimparAntigos).toHaveBeenCalledWith("t1", expect.anything());
+      const responseData = (res.json as jest.Mock).mock.calls[0][0].data;
+      expect(responseData.totalRemovidos).toBe(5);
     });
   });
 });

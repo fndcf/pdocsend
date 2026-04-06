@@ -8,15 +8,22 @@ import messageBuilderService from "../services/MessageBuilderService";
 import deduplicacaoService from "../services/DeduplicacaoService";
 import logger from "../utils/logger";
 import { Contato } from "../models/Imovel";
+import { Tenant } from "../models/Tenant";
 import tenantRepository from "../repositories/TenantRepository";
 import loteRepository from "../repositories/LoteRepository";
 import envioRepository from "../repositories/EnvioRepository";
+import MemoryCache from "../utils/cache";
+import { decrypt } from "../utils/crypto";
 
 interface EnvioPayload {
   tenantId: string;
   loteId: string;
   envioId: string;
 }
+
+// Cache de tenant config com TTL de 10 minutos.
+// Config de tenant muda raramente e é a mesma para todas as tasks de um lote.
+const tenantCache = new MemoryCache<Tenant & { id: string }>(10 * 60);
 
 export const processarEnvio = onRequest(
   {
@@ -38,15 +45,14 @@ export const processarEnvio = onRequest(
       }
 
       // Já foi processado? (idempotência)
-      const status = (envioData as Record<string, unknown>).status as string;
-      if (status === "enviado" || status === "erro" || status === "cancelado") {
+      if (envioData.status === "enviado" || envioData.status === "erro" || envioData.status === "cancelado") {
         res.status(200).json({ status: "already_processed" });
         return;
       }
 
       // Verificar se o lote foi cancelado
       const loteData = await loteRepository.buscarPorId(tenantId, loteId);
-      if ((loteData as Record<string, unknown>)?.status === "cancelado") {
+      if (loteData?.status === "cancelado") {
         await envioRepository.atualizarStatus(tenantId, loteId, envioId, "cancelado");
         await verificarFinalizacao(tenantId, loteId);
         logger.info("Envio pulado - lote cancelado", { tenantId, loteId, envioId });
@@ -54,42 +60,41 @@ export const processarEnvio = onRequest(
         return;
       }
 
-      // Verificar se este envio individual foi cancelado
-      if (status === "cancelado") {
-        res.status(200).json({ status: "cancelled" });
-        return;
-      }
-
       // 2. Marcar como enviando
       await envioRepository.atualizarStatus(tenantId, loteId, envioId, "enviando");
 
-      // 3. Buscar template do tenant
-      const tenant = await tenantRepository.buscarPorId(tenantId);
+      // 3. Buscar template do tenant (com cache)
+      let tenant = tenantCache.get(tenantId);
+      if (!tenant) {
+        const fetched = await tenantRepository.buscarPorId(tenantId);
+        if (fetched) {
+          tenantCache.set(tenantId, fetched);
+          tenant = fetched;
+        }
+      }
 
       if (!tenant?.zapiInstanceId || !tenant?.zapiToken || !tenant?.zapiClientToken) {
         throw new Error("Z-API não configurada para este tenant");
       }
 
       // 4. Montar mensagem com saudação dinâmica
-      const data = envioData as Record<string, unknown>;
       const contato: Contato = {
-        nome: data.nome as string,
-        telefone: data.telefone as string,
-        imoveis: data.imoveis as Contato["imoveis"],
+        nome: envioData.nome,
+        telefone: envioData.telefone,
+        imoveis: envioData.imoveis,
       };
 
       // Se já tem mensagem editada pelo corretor, substituir {saudação}
       // Caso contrário, gerar do zero
-      const mensagemSalva = data.mensagem as string;
-      const mensagem = mensagemSalva
-        ? messageBuilderService.aplicarSaudacao(mensagemSalva)
+      const mensagem = envioData.mensagem
+        ? messageBuilderService.aplicarSaudacao(envioData.mensagem)
         : messageBuilderService.montarMensagem(contato, tenant.mensagemTemplate);
 
-      // 5. Enviar via Z-API
+      // 5. Enviar via Z-API (descriptografa tokens se necessário)
       await zApiService.enviarMensagem(
         tenant.zapiInstanceId,
-        tenant.zapiToken,
-        tenant.zapiClientToken,
+        decrypt(tenant.zapiToken),
+        decrypt(tenant.zapiClientToken),
         contato.telefone,
         mensagem
       );
@@ -151,7 +156,7 @@ async function verificarFinalizacao(tenantId: string, loteId: string): Promise<v
   });
 
   const processados = contadores.enviados + contadores.erros + contadores.cancelados;
-  if (processados >= ((lote as Record<string, unknown>).totalEnvios as number)) {
+  if (processados >= lote.totalEnvios) {
     await loteRepository.finalizar(tenantId, loteId, contadores);
   }
 }
