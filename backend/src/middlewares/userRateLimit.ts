@@ -13,7 +13,8 @@ const userRateLimit = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const authReq = req as AuthRequest;
-    return authReq.user?.uid || req.ip || "unknown";
+    // Sempre usa uid (nunca IP), pois este middleware roda após requireAuth
+    return authReq.user?.uid || "unknown";
   },
   message: { success: false, error: "Muitas requisições do seu usuário. Aguarde um momento." },
 });
