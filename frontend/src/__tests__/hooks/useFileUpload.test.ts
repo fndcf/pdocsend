@@ -38,7 +38,7 @@ describe("useFileUpload", () => {
     });
 
     expect(result.current.file).toBeNull();
-    expect(result.current.error).toBe("Formato inválido. Envie um arquivo PDF.");
+    expect(result.current.error).toBe("Formato inválido. Envie um arquivo PDF ou Excel (.xlsx).");
   });
 
   it("deve aceitar arquivo PDF via handleDrop", () => {
@@ -72,7 +72,7 @@ describe("useFileUpload", () => {
     });
 
     expect(result.current.file).toBeNull();
-    expect(result.current.error).toBe("Formato inválido. Envie um arquivo PDF.");
+    expect(result.current.error).toBe("Formato inválido. Envie um arquivo PDF ou Excel (.xlsx).");
   });
 
   it("deve limpar arquivo e erro com clearFile", () => {

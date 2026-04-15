@@ -69,8 +69,8 @@ const renderUpload = () =>
 describe("Upload", () => {
   it("deve renderizar tela de upload", () => {
     renderUpload();
-    expect(screen.getAllByText(/Processar PDF/i).length).toBeGreaterThan(0);
-    expect(screen.getByText("Arraste o PDF aqui ou clique para selecionar")).toBeInTheDocument();
+    expect(screen.getAllByText(/Processar arquivo/i).length).toBeGreaterThan(0);
+    expect(screen.getByText("Arraste o arquivo aqui ou clique para selecionar")).toBeInTheDocument();
   });
 
   it("deve ter botão de histórico", () => {
@@ -85,18 +85,18 @@ describe("Upload", () => {
 
   it("deve ter botão de processar desabilitado sem arquivo", () => {
     renderUpload();
-    const button = screen.getByRole("button", { name: /processar pdf/i });
+    const button = screen.getByRole("button", { name: /processar arquivo/i });
     expect(button).toBeDisabled();
   });
 
-  it("deve mostrar erro para arquivo não PDF", () => {
+  it("deve mostrar erro para arquivo inválido (txt)", () => {
     renderUpload();
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(["test"], "test.txt", { type: "text/plain" });
 
     fireEvent.change(input, { target: { files: [file] } });
 
-    expect(screen.getByText("Formato inválido. Envie um arquivo PDF.")).toBeInTheDocument();
+    expect(screen.getByText("Formato inválido. Envie um arquivo PDF ou Excel (.xlsx).")).toBeInTheDocument();
   });
 
   it("deve aceitar arquivo PDF e habilitar botão", () => {
@@ -107,11 +107,25 @@ describe("Upload", () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     expect(screen.getByText("test.pdf")).toBeInTheDocument();
-    const button = screen.getByRole("button", { name: /processar pdf/i });
+    const button = screen.getByRole("button", { name: /processar arquivo/i });
     expect(button).not.toBeDisabled();
   });
 
-  it("deve mostrar loading ao processar PDF", async () => {
+  it("deve aceitar arquivo Excel (.xlsx) e habilitar botão", () => {
+    renderUpload();
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(["test"], "lista.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(screen.getByText("lista.xlsx")).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: /processar arquivo/i });
+    expect(button).not.toBeDisabled();
+  });
+
+  it("deve mostrar loading ao processar arquivo", async () => {
     const apiClient = require("@/services/apiClient").default;
     apiClient.upload.mockImplementation(() => new Promise(() => {})); // never resolves
 
@@ -120,9 +134,9 @@ describe("Upload", () => {
     const file = new File(["test"], "test.pdf", { type: "application/pdf" });
     fireEvent.change(input, { target: { files: [file] } });
 
-    fireEvent.click(screen.getByRole("button", { name: /processar pdf/i }));
+    fireEvent.click(screen.getByRole("button", { name: /processar arquivo/i }));
 
-    expect(await screen.findByText("Processando PDF...")).toBeInTheDocument();
+    expect(await screen.findByText("Processando arquivo...")).toBeInTheDocument();
   });
 
   it("deve mostrar erro 500 amigável", async () => {
@@ -134,7 +148,7 @@ describe("Upload", () => {
     const file = new File(["test"], "test.pdf", { type: "application/pdf" });
     fireEvent.change(input, { target: { files: [file] } });
 
-    fireEvent.click(screen.getByRole("button", { name: /processar pdf/i }));
+    fireEvent.click(screen.getByRole("button", { name: /processar arquivo/i }));
 
     expect(await screen.findByText("Erro interno do servidor. Tente novamente em alguns instantes.")).toBeInTheDocument();
   });
@@ -148,14 +162,14 @@ describe("Upload", () => {
     const file = new File(["test"], "test.pdf", { type: "application/pdf" });
     fireEvent.change(input, { target: { files: [file] } });
 
-    fireEvent.click(screen.getByRole("button", { name: /processar pdf/i }));
+    fireEvent.click(screen.getByRole("button", { name: /processar arquivo/i }));
 
     expect(await screen.findByText("Erro de conexão. Verifique sua internet e tente novamente.")).toBeInTheDocument();
   });
 
   it("deve aceitar drop de arquivo PDF", () => {
     renderUpload();
-    const dropZone = screen.getByText("Arraste o PDF aqui ou clique para selecionar").closest("div")!;
+    const dropZone = screen.getByText("Arraste o arquivo aqui ou clique para selecionar").closest("div")!;
     const file = new File(["test"], "dropped.pdf", { type: "application/pdf" });
 
     fireEvent.drop(dropZone, {
@@ -165,15 +179,29 @@ describe("Upload", () => {
     expect(screen.getByText("dropped.pdf")).toBeInTheDocument();
   });
 
-  it("deve rejeitar drop de arquivo não PDF", () => {
+  it("deve aceitar drop de arquivo Excel", () => {
     renderUpload();
-    const dropZone = screen.getByText("Arraste o PDF aqui ou clique para selecionar").closest("div")!;
-    const file = new File(["test"], "test.xlsx", { type: "application/vnd.ms-excel" });
+    const dropZone = screen.getByText("Arraste o arquivo aqui ou clique para selecionar").closest("div")!;
+    const file = new File(["test"], "lista.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
 
     fireEvent.drop(dropZone, {
       dataTransfer: { files: [file] },
     });
 
-    expect(screen.getByText("Formato inválido. Envie um arquivo PDF.")).toBeInTheDocument();
+    expect(screen.getByText("lista.xlsx")).toBeInTheDocument();
+  });
+
+  it("deve rejeitar drop de arquivo inválido", () => {
+    renderUpload();
+    const dropZone = screen.getByText("Arraste o arquivo aqui ou clique para selecionar").closest("div")!;
+    const file = new File(["test"], "test.docx", { type: "application/msword" });
+
+    fireEvent.drop(dropZone, {
+      dataTransfer: { files: [file] },
+    });
+
+    expect(screen.getByText("Formato inválido. Envie um arquivo PDF ou Excel (.xlsx).")).toBeInTheDocument();
   });
 });
