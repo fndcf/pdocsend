@@ -20,8 +20,13 @@ export interface IPdfParserService {
 
 // --- Data Cleaner ---
 
+export interface ResultadoProcessamento {
+  contatos: Contato[];
+  telefoneInvalido: number;
+}
+
 export interface IDataCleanerService {
-  processar(dadosBrutos: ImovelBruto[]): Contato[];
+  processar(dadosBrutos: ImovelBruto[]): ResultadoProcessamento;
 }
 
 // --- Message Builder ---

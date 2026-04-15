@@ -27,7 +27,7 @@ describe("DataCleanerService", () => {
         },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos } = dataCleanerService.processar(brutos);
 
       expect(contatos).toHaveLength(1);
       expect(contatos[0].nome).toBe("Denise");
@@ -51,7 +51,7 @@ describe("DataCleanerService", () => {
         },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos } = dataCleanerService.processar(brutos);
 
       expect(contatos).toHaveLength(1);
       expect(contatos[0].imoveis[0].operacao).toBe("locacao");
@@ -73,7 +73,7 @@ describe("DataCleanerService", () => {
         },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos } = dataCleanerService.processar(brutos);
 
       expect(contatos[0].imoveis[0].operacao).toBe("venda e locacao");
     });
@@ -92,7 +92,7 @@ describe("DataCleanerService", () => {
         },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos } = dataCleanerService.processar(brutos);
       expect(contatos).toHaveLength(0);
     });
 
@@ -120,7 +120,7 @@ describe("DataCleanerService", () => {
         },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos } = dataCleanerService.processar(brutos);
 
       expect(contatos).toHaveLength(1);
       expect(contatos[0].imoveis).toHaveLength(2);
@@ -152,7 +152,7 @@ describe("DataCleanerService", () => {
         },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos } = dataCleanerService.processar(brutos);
 
       expect(contatos).toHaveLength(1);
       expect(contatos[0].imoveis).toHaveLength(1);
@@ -182,7 +182,7 @@ describe("DataCleanerService", () => {
         },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos } = dataCleanerService.processar(brutos);
 
       expect(contatos).toHaveLength(1);
       expect(contatos[0].imoveis).toHaveLength(2);
@@ -202,7 +202,7 @@ describe("DataCleanerService", () => {
         },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos } = dataCleanerService.processar(brutos);
       expect(contatos[0].nome).toBe("Antonio Jose");
     });
 
@@ -220,11 +220,11 @@ describe("DataCleanerService", () => {
         },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos } = dataCleanerService.processar(brutos);
       expect(contatos).toHaveLength(0);
     });
 
-    it("deve ignorar imóvel com telefone inválido", () => {
+    it("deve ignorar imóvel com telefone inválido e contar em telefoneInvalido", () => {
       const brutos: ImovelBruto[] = [
         {
           edificio: "Ed Teste",
@@ -236,10 +236,21 @@ describe("DataCleanerService", () => {
           locacao: "R$R$0,00",
           venda: "R$500.000,00",
         },
+        {
+          edificio: "Ed Teste",
+          endereco: "Rua Teste",
+          numero: "100",
+          apartamento: "2",
+          proprietario: "Maria",
+          telefone: "4915152958188",
+          locacao: "R$R$0,00",
+          venda: "R$300.000,00",
+        },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos, telefoneInvalido } = dataCleanerService.processar(brutos);
       expect(contatos).toHaveLength(0);
+      expect(telefoneInvalido).toBe(2);
     });
 
     it("deve tratar PAULO com 8 imóveis agrupados", () => {
@@ -269,7 +280,7 @@ describe("DataCleanerService", () => {
         },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos } = dataCleanerService.processar(brutos);
 
       expect(contatos).toHaveLength(1);
       expect(contatos[0].nome).toBe("Paulo");
@@ -300,7 +311,7 @@ describe("DataCleanerService", () => {
         },
       ];
 
-      const contatos = dataCleanerService.processar(brutos);
+      const { contatos } = dataCleanerService.processar(brutos);
 
       expect(contatos).toHaveLength(1);
       expect(contatos[0].imoveis).toHaveLength(1);

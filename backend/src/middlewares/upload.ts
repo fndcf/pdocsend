@@ -2,9 +2,23 @@ import { Request, Response, NextFunction } from "express";
 import Busboy from "busboy";
 import { AuthRequest } from "./auth";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB para PDFs
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+function isArquivoValido(mimeType: string, filename: string): boolean {
+  const name = filename.toLowerCase();
+  return (
+    mimeType === "application/pdf" || name.endsWith(".pdf") ||
+    mimeType === XLSX_MIME || name.endsWith(".xlsx")
+  );
+}
 
 export function uploadPdf(req: Request, res: Response, next: NextFunction): void {
+  return uploadArquivo(req, res, next);
+}
+
+export function uploadArquivo(req: Request, res: Response, next: NextFunction): void {
   const contentType = req.headers["content-type"] || "";
   if (!contentType.includes("multipart/form-data")) {
     res.status(400).json({ success: false, error: "Content-Type deve ser multipart/form-data" });
@@ -31,15 +45,11 @@ export function uploadPdf(req: Request, res: Response, next: NextFunction): void
     fileName = filename;
     fileMimeType = mimeType;
 
-    const isPdf =
-      mimeType === "application/pdf" ||
-      filename.toLowerCase().endsWith(".pdf");
-
-    if (!isPdf) {
+    if (!isArquivoValido(mimeType, filename)) {
       file.resume();
       res.status(400).json({
         success: false,
-        error: "Formato de arquivo inválido. Envie um arquivo PDF (.pdf)",
+        error: "Formato inválido. Envie um arquivo PDF (.pdf) ou Excel (.xlsx)",
       });
       return;
     }

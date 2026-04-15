@@ -61,7 +61,7 @@ describe("Fluxo de integração: Parse → Clean → Message", () => {
     expect(brutos[1].proprietario).toBe("Maria Teste 13 99149 9997");
 
     // Step 2: Clean + Dedup + Agrupar
-    const contatos = dataCleanerService.processar(brutos);
+    const { contatos } = dataCleanerService.processar(brutos);
     expect(contatos).toHaveLength(2); // Fernando (2 imóveis agrupados) + Maria
 
     // Verificar Fernando (agrupado)
@@ -126,7 +126,7 @@ describe("Fluxo de integração: Parse → Clean → Message", () => {
     const brutos = pdfParserService.parseTexto(texto);
     expect(brutos).toHaveLength(2);
 
-    const contatos = dataCleanerService.processar(brutos);
+    const { contatos } = dataCleanerService.processar(brutos);
     expect(contatos).toHaveLength(1);
     expect(contatos[0].imoveis).toHaveLength(1);
     expect(contatos[0].imoveis[0].operacao).toBe("venda e locacao");
@@ -147,7 +147,7 @@ describe("Fluxo de integração: Parse → Clean → Message", () => {
       "Condomínio R$500,00 Locação R$R$0,00 Venda R$300.000,00 ";
 
     const brutos = pdfParserService.parseTexto(texto);
-    const contatos = dataCleanerService.processar(brutos);
+    const { contatos } = dataCleanerService.processar(brutos);
 
     expect(contatos[0].nome).toBe("Paulo");
   });

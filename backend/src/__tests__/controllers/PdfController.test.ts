@@ -110,7 +110,7 @@ describe("PdfController", () => {
     ];
 
     mockExtrairDoPdf.mockResolvedValue(brutos);
-    mockProcessar.mockReturnValue(contatos);
+    mockProcessar.mockReturnValue({ contatos, telefoneInvalido: 0 });
     mockVerificar.mockResolvedValue(contatosComStatus);
     mockBuscarPorId.mockResolvedValue({
       id: "tenant-1",
@@ -146,7 +146,7 @@ describe("PdfController", () => {
     ];
 
     mockExtrairDoPdf.mockResolvedValue(brutos);
-    mockProcessar.mockReturnValue(contatos);
+    mockProcessar.mockReturnValue({ contatos, telefoneInvalido: 0 });
 
     const req = {
       user: baseUser,
@@ -175,7 +175,7 @@ describe("PdfController", () => {
     ];
 
     mockExtrairDoPdf.mockResolvedValue(brutos);
-    mockProcessar.mockReturnValue(contatos);
+    mockProcessar.mockReturnValue({ contatos, telefoneInvalido: 0 });
 
     const req = {
       user: baseUser,
@@ -212,7 +212,7 @@ describe("PdfController", () => {
     ];
 
     mockExtrairDoPdf.mockResolvedValue(brutos);
-    mockProcessar.mockReturnValue(contatos);
+    mockProcessar.mockReturnValue({ contatos, telefoneInvalido: 0 });
     mockVerificar.mockResolvedValue(contatosComStatus);
     mockBuscarPorId.mockResolvedValue({
       id: "tenant-1",
@@ -243,7 +243,7 @@ describe("PdfController", () => {
     ];
 
     mockExtrairDoPdf.mockResolvedValue(brutos);
-    mockProcessar.mockReturnValue(contatos);
+    mockProcessar.mockReturnValue({ contatos, telefoneInvalido: 0 });
     mockVerificar.mockResolvedValue([
       { ...contatos[0], status: "novo", hashesNovos: ["h"], hashesExistentes: [] },
     ]);

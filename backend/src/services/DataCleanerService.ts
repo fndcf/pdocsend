@@ -8,15 +8,28 @@ import { normalizarTelefone, extrairNome } from "../utils/phoneUtils";
 import { limparValor, campoVazio, gerarHashImovel } from "../utils/textUtils";
 import logger from "../utils/logger";
 
+export interface ResultadoProcessamento {
+  contatos: Contato[];
+  telefoneInvalido: number;
+}
+
 class DataCleanerService {
   /**
-   * Processa dados brutos do PDF e retorna contatos limpos, agrupados e deduplicados
+   * Processa dados brutos do PDF/Excel e retorna contatos limpos, agrupados e deduplicados
    */
-  processar(dadosBrutos: ImovelBruto[]): Contato[] {
+  processar(dadosBrutos: ImovelBruto[]): ResultadoProcessamento {
     // 1. Limpar cada imóvel individualmente
-    const imoveisLimpos = dadosBrutos
-      .map((ib) => this.limparImovel(ib))
-      .filter((im) => im !== null);
+    let telefoneInvalido = 0;
+    const imoveisLimpos: ImovelLimpo[] = [];
+
+    for (const ib of dadosBrutos) {
+      const result = this.limparImovel(ib);
+      if (result === "telefone_invalido") {
+        telefoneInvalido++;
+      } else if (result !== null) {
+        imoveisLimpos.push(result);
+      }
+    }
 
     // 2. Mesclar imóveis duplicados (mesmo hash - une locação + venda)
     const imoveisMesclados = this.deduplicarImoveis(imoveisLimpos);
@@ -32,20 +45,22 @@ class DataCleanerService {
     logger.info("Dados processados", {
       brutos: dadosBrutos.length,
       limpos: imoveisLimpos.length,
+      telefoneInvalido,
       mesclados: imoveisMesclados.length,
       comOperacao: imoveisComOperacao.length,
       contatos: contatos.length,
     });
 
-    return contatos;
+    return { contatos, telefoneInvalido };
   }
 
   /**
-   * Limpa e normaliza um imóvel bruto
+   * Limpa e normaliza um imóvel bruto.
+   * Retorna "telefone_invalido" para diferenciar esse caso dos demais descartes.
    */
-  private limparImovel(bruto: ImovelBruto): ImovelLimpo | null {
+  private limparImovel(bruto: ImovelBruto): ImovelLimpo | "telefone_invalido" | null {
     const telefone = normalizarTelefone(bruto.telefone);
-    if (!telefone || telefone.length < 10) return null;
+    if (!telefone || telefone.length < 10) return "telefone_invalido";
 
     const nome = extrairNome(bruto.proprietario);
     if (!nome || nome.length < 2) return null;

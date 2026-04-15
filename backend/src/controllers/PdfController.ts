@@ -6,6 +6,7 @@ import { Response } from "express";
 import { AuthRequest } from "../middlewares/auth";
 import { ResponseHelper } from "../utils/responseHelper";
 import pdfParserService from "../services/PdfParserService";
+import excelParserService from "../services/ExcelParserService";
 import dataCleanerService from "../services/DataCleanerService";
 import deduplicacaoService from "../services/DeduplicacaoService";
 import messageBuilderService from "../services/MessageBuilderService";
@@ -31,26 +32,31 @@ class PdfController {
       const formFields = (req as unknown as Record<string, unknown>).formFields as Record<string, string> || {};
       const { filtroOperacao } = processarPdfFormFieldsSchema.parse(formFields);
 
-      logger.info("Processando PDF", {
+      const isExcel = file.originalname.toLowerCase().endsWith(".xlsx");
+
+      logger.info(`Processando ${isExcel ? "Excel" : "PDF"}`, {
         tenantId,
         fileName: file.originalname,
         fileSize: file.size,
         filtroOperacao,
       });
 
-      // 1. Extrair dados brutos do PDF
-      const brutos = await pdfParserService.extrairDoPdf(file.buffer);
+      // 1. Extrair dados brutos do arquivo (PDF ou Excel)
+      const brutos = isExcel
+        ? excelParserService.extrairDoExcel(file.buffer)
+        : await pdfParserService.extrairDoPdf(file.buffer);
 
       if (brutos.length === 0) {
         ResponseHelper.badRequest(
           res,
-          "Nenhum imóvel encontrado no PDF. Verifique se o formato está correto."
+          `Nenhum imóvel encontrado no ${isExcel ? "Excel" : "PDF"}. Verifique se o formato está correto.`
         );
         return;
       }
 
       // 2. Limpar, normalizar e agrupar
-      let contatos = dataCleanerService.processar(brutos);
+      const { contatos: contatosLimpos, telefoneInvalido } = dataCleanerService.processar(brutos);
+      let contatos = contatosLimpos;
 
       // 3. Aplicar filtro de operação
       if (filtroOperacao !== "todos") {
@@ -121,7 +127,7 @@ class PdfController {
         (c) => c.status === "ja_enviado"
       ).length;
 
-      logger.info("PDF processado com sucesso", {
+      logger.info(`${isExcel ? "Excel" : "PDF"} processado com sucesso`, {
         tenantId,
         totalBrutos: brutos.length,
         totalContatos: contatos.length,
@@ -139,6 +145,7 @@ class PdfController {
             totalContatos: contatos.length,
             novos,
             jaEnviados,
+            telefoneInvalido,
           },
           pdfOrigem: file.originalname,
         },
@@ -151,12 +158,12 @@ class PdfController {
     } catch (error) {
       logger.error("Erro ao processar PDF", { tenantId: req.user?.tenantId }, error);
 
-      if (error instanceof Error && error.message.includes("Erro ao processar o PDF")) {
+      if (error instanceof Error && error.message.includes("Erro ao processar")) {
         ResponseHelper.badRequest(res, error.message);
         return;
       }
 
-      ResponseHelper.internalError(res, "Erro ao processar o PDF");
+      ResponseHelper.internalError(res, "Erro ao processar o arquivo");
     }
   }
 }

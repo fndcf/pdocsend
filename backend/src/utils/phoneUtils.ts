@@ -27,8 +27,8 @@ export function normalizarTelefone(telefone: string): string {
     return `5511${digits}`;
   }
 
-  // Retorna como está se não encaixa em nenhum padrão
-  return digits;
+  // Não encaixa em nenhum padrão válido — descarta
+  return "";
 }
 
 /**

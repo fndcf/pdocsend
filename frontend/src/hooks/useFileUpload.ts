@@ -15,11 +15,19 @@ export function useFileUpload(): FileUploadResult {
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const isArquivoValido = (f: File): boolean => {
+    const name = f.name.toLowerCase();
+    return (
+      f.type === "application/pdf" || name.endsWith(".pdf") ||
+      f.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || name.endsWith(".xlsx")
+    );
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      if (selectedFile.type !== "application/pdf") {
-        setError("Formato inválido. Envie um arquivo PDF.");
+      if (!isArquivoValido(selectedFile)) {
+        setError("Formato inválido. Envie um arquivo PDF ou Excel (.xlsx).");
         return;
       }
       setFile(selectedFile);
@@ -31,11 +39,11 @@ export function useFileUpload(): FileUploadResult {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile) {
-      if (droppedFile.type === "application/pdf") {
+      if (isArquivoValido(droppedFile)) {
         setFile(droppedFile);
         setError("");
       } else {
-        setError("Formato inválido. Envie um arquivo PDF.");
+        setError("Formato inválido. Envie um arquivo PDF ou Excel (.xlsx).");
       }
     }
   };

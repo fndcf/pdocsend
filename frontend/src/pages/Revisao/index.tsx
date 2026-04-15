@@ -11,6 +11,7 @@ import {
   Check,
   X,
   History,
+  AlertTriangle,
 } from "lucide-react";
 import apiClient from "@/services/apiClient";
 import { ContatoComStatus, queryKeys } from "@/types";
@@ -42,6 +43,7 @@ interface LocationState {
     totalContatos: number;
     novos: number;
     jaEnviados: number;
+    telefoneInvalido: number;
   };
   pdfOrigem: string;
 }
@@ -178,6 +180,13 @@ export function Revisao() {
           <ResumoLabel>Já enviados</ResumoLabel>
         </ResumoItem>
       </Resumo>
+
+      {state.resumo.telefoneInvalido > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px 16px", background: "#fefce8", border: "1px solid #fde047", borderRadius: "8px", color: "#854d0e", fontSize: "14px", margin: "0 0 16px" }}>
+          <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+          {state.resumo.telefoneInvalido} imóvel(is) ignorado(s) por telefone inválido na planilha. Corrija os números e reenvie o arquivo caso necessário.
+        </div>
+      )}
 
       {novos.length > 0 && (
         <Section>

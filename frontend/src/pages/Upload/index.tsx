@@ -26,6 +26,7 @@ interface ProcessarResponse {
     totalContatos: number;
     novos: number;
     jaEnviados: number;
+    telefoneInvalido: number;
   };
   pdfOrigem: string;
 }
@@ -78,7 +79,7 @@ export function Upload() {
         <LoadingOverlay>
           <LoadingContent>
             <UploadIcon size={48} color="#2563eb" className="spin" />
-            <LoadingTitle>Processando PDF...</LoadingTitle>
+            <LoadingTitle>Processando arquivo...</LoadingTitle>
             <LoadingText>
               Extraindo dados de imóveis e preparando contatos.
               <br />
@@ -169,10 +170,10 @@ export function Upload() {
         )}
 
         <Content>
-          <Title>Processar PDF</Title>
+          <Title>Processar arquivo</Title>
           <Description>
-            Faça upload de um PDF com dados de imóveis para extrair contatos e
-            enviar mensagens via WhatsApp.
+            Faça upload de um PDF ou Excel (.xlsx) com dados de imóveis para
+            extrair contatos e enviar mensagens via WhatsApp.
           </Description>
 
           <FilterGroup>
@@ -199,7 +200,7 @@ export function Upload() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf"
+              accept=".pdf,.xlsx"
               onChange={handleFileChange}
               style={{ display: "none" }}
             />
@@ -213,8 +214,8 @@ export function Upload() {
             ) : (
               <DropContent>
                 <UploadIcon size={40} color="#9ca3af" />
-                <DropText>Arraste o PDF aqui ou clique para selecionar</DropText>
-                <DropSubtext>Apenas arquivos PDF (máx. 10MB)</DropSubtext>
+                <DropText>Arraste o arquivo aqui ou clique para selecionar</DropText>
+                <DropSubtext>PDF ou Excel (.xlsx) — máx. 10MB</DropSubtext>
               </DropContent>
             )}
           </DropZone>
@@ -227,7 +228,7 @@ export function Upload() {
           )}
 
           <Button onClick={handleProcessar} disabled={!file || loading}>
-            {loading ? "Processando..." : "Processar PDF"}
+            {loading ? "Processando..." : "Processar arquivo"}
           </Button>
         </Content>
     </Container>
