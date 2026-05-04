@@ -47,11 +47,13 @@ jest.mock("../../repositories/TenantRepository", () => ({
 }));
 
 const mockEnviarMensagem = jest.fn().mockResolvedValue({ zapiMessageId: "msg-1" });
+const mockVerificarConexao = jest.fn().mockResolvedValue(true);
 
 jest.mock("../../services/ZApiService", () => ({
   __esModule: true,
   default: {
     enviarMensagem: mockEnviarMensagem,
+    verificarConexao: mockVerificarConexao,
   },
 }));
 
@@ -264,5 +266,23 @@ describe("EnvioProcessorService", () => {
 
     expect(result.status).toBe("sent");
     expect(mockFinalizarLote).not.toHaveBeenCalled();
+  });
+
+  it("deve marcar erro quando Z-API está desconectada", async () => {
+    mockBuscarEnvio.mockResolvedValue(envioBase);
+    mockBuscarLote.mockResolvedValue(loteBase);
+    mockBuscarTenant.mockResolvedValue(tenantBase);
+    mockVerificarConexao.mockResolvedValueOnce(false);
+    mockContarPorStatus.mockResolvedValue({ enviados: 0, erros: 1, cancelados: 0, total: 1 });
+
+    const result = await envioProcessorService.processar(TENANT_ID, LOTE_ID, ENVIO_ID);
+
+    expect(result.status).toBe("error");
+    expect((result as { error: string }).error).toContain("Z-API desconectada");
+    expect(mockEnviarMensagem).not.toHaveBeenCalled();
+    expect(mockMarcarErro).toHaveBeenCalledWith(
+      TENANT_ID, LOTE_ID, ENVIO_ID,
+      expect.stringContaining("Z-API desconectada")
+    );
   });
 });

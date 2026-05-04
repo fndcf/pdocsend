@@ -74,7 +74,16 @@ class EnvioProcessorService {
         ? messageBuilderService.aplicarSaudacao(envioData.mensagem)
         : messageBuilderService.montarMensagem(contato, tenant.mensagemTemplate);
 
-      // 7. Enviar via Z-API
+      // 7. Verificar conexão e enviar via Z-API
+      const conectado = await zApiService.verificarConexao(
+        tenant.zapiInstanceId,
+        decrypt(tenant.zapiToken),
+        decrypt(tenant.zapiClientToken)
+      );
+      if (!conectado) {
+        throw new Error("Z-API desconectada. Reconecte o WhatsApp e tente novamente.");
+      }
+
       await zApiService.enviarMensagem(
         tenant.zapiInstanceId,
         decrypt(tenant.zapiToken),
