@@ -22,8 +22,8 @@ export function limparValor(valor: string): string {
  */
 export function campoVazio(valor: string | undefined): boolean {
   if (!valor) return true;
-  const trimmed = valor.trim();
-  return trimmed === "" || trimmed === "-";
+  const trimmed = valor.trim().toUpperCase();
+  return trimmed === "" || trimmed === "-" || trimmed === "N/TEM" || trimmed === "N/-TEM" || trimmed === "N/A";
 }
 
 /**
@@ -58,5 +58,5 @@ export function gerarHashImovel(
     apartamento,
   ].map((p) => (p || "").trim().toLowerCase());
 
-  return partes.join("_").replace(/\s+/g, "-");
+  return partes.join("_").replace(/\s+/g, "-").replace(/\//g, "");
 }
