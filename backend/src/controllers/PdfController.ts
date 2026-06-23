@@ -30,7 +30,7 @@ class PdfController {
       }
 
       const formFields = (req as unknown as Record<string, unknown>).formFields as Record<string, string> || {};
-      const { filtroOperacao } = processarPdfFormFieldsSchema.parse(formFields);
+      const { filtroOperacao, valorVendaMin, valorVendaMax, valorLocacaoMin, valorLocacaoMax } = processarPdfFormFieldsSchema.parse(formFields);
 
       const isExcel = file.originalname.toLowerCase().endsWith(".xlsx");
 
@@ -98,7 +98,67 @@ class PdfController {
         return;
       }
 
-      // 3. Verificar deduplicação com envios anteriores
+      // 4. Aplicar filtro de faixa de valores
+      const parsarValorBRL = (v: string): number => {
+        if (!v) return 0;
+        return parseFloat(v.replace(/R\$\s?/g, "").replace(/\./g, "").replace(",", ".")) || 0;
+      };
+      const toNum = (v: string | undefined): number | null => {
+        if (!v || v.trim() === "") return null;
+        const n = parseFloat(v.trim());
+        return isNaN(n) ? null : n;
+      };
+      const vMin = toNum(valorVendaMin);
+      const vMax = toNum(valorVendaMax);
+      const lMin = toNum(valorLocacaoMin);
+      const lMax = toNum(valorLocacaoMax);
+
+      if (vMin !== null || vMax !== null || lMin !== null || lMax !== null) {
+        const vendaOk = (valorStr: string): boolean => {
+          const v = parsarValorBRL(valorStr);
+          if (v === 0) return false;
+          if (vMin !== null && v < vMin) return false;
+          if (vMax !== null && v > vMax) return false;
+          return true;
+        };
+        const locacaoOk = (valorStr: string): boolean => {
+          const v = parsarValorBRL(valorStr);
+          if (v === 0) return false;
+          if (lMin !== null && v < lMin) return false;
+          if (lMax !== null && v > lMax) return false;
+          return true;
+        };
+        const temFiltroVenda = vMin !== null || vMax !== null;
+        const temFiltroLocacao = lMin !== null || lMax !== null;
+
+        contatos = contatos
+          .map((contato) => ({
+            ...contato,
+            imoveis: contato.imoveis
+              .map((im) => {
+                if (im.operacao === "venda e locacao") {
+                  const passaVenda = !temFiltroVenda || vendaOk(im.valorVenda);
+                  const passaLocacao = !temFiltroLocacao || locacaoOk(im.valorLocacao);
+                  if (!passaVenda && !passaLocacao) return null;
+                  if (!passaVenda) return { ...im, operacao: "locacao" as const, valorVenda: "" };
+                  if (!passaLocacao) return { ...im, operacao: "venda" as const, valorLocacao: "" };
+                  return im;
+                }
+                if (im.operacao === "venda" && temFiltroVenda && !vendaOk(im.valorVenda)) return null;
+                if (im.operacao === "locacao" && temFiltroLocacao && !locacaoOk(im.valorLocacao)) return null;
+                return im;
+              })
+              .filter((im): im is NonNullable<typeof im> => im !== null),
+          }))
+          .filter((contato) => contato.imoveis.length > 0);
+
+        if (contatos.length === 0) {
+          ResponseHelper.badRequest(res, "Nenhum imóvel encontrado na faixa de valor informada. Ajuste os filtros e tente novamente.");
+          return;
+        }
+      }
+
+      // 6. Verificar deduplicação com envios anteriores
       const contatosComStatus = await deduplicacaoService.verificar(
         tenantId,
         contatos

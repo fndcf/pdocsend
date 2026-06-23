@@ -14,6 +14,7 @@ import {
   DashboardCards, DashCard, DashIcon, DashInfo, DashValue, DashLabel, DashProgress, DashProgressBar,
   Header, Logo, HeaderActions, HeaderButton,
   FilterGroup, FilterLabel, FilterOptions, FilterOption,
+  PriceFilterSection, PriceFilterRow, PriceInputGroup, PriceInputLabel, PriceInputWrapper, PriceCurrency, PriceInput,
   Content, Title, Description,
   DropZone, DropContent, DropText, DropSubtext, FileInfo, FileName, FileSize,
   ErrorBox, Button,
@@ -33,6 +34,10 @@ interface ProcessarResponse {
 
 export function Upload() {
   const [filtroOperacao, setFiltroOperacao] = useState<"todos" | "venda" | "locacao">("todos");
+  const [valorVendaMin, setValorVendaMin] = useState("");
+  const [valorVendaMax, setValorVendaMax] = useState("");
+  const [valorLocacaoMin, setValorLocacaoMin] = useState("");
+  const [valorLocacaoMax, setValorLocacaoMax] = useState("");
   const { file, fileInputRef, error, setError, handleFileChange, handleDrop } = useFileUpload();
   const dashboard = useDashboard();
   const { logout } = useAuth();
@@ -41,7 +46,13 @@ export function Upload() {
 
   const processarMutation = useMutation({
     mutationFn: (uploadFile: File) =>
-      apiClient.upload<ProcessarResponse>("/pdf/processar", uploadFile, { filtroOperacao }),
+      apiClient.upload<ProcessarResponse>("/pdf/processar", uploadFile, {
+        filtroOperacao,
+        ...(valorVendaMin && { valorVendaMin }),
+        ...(valorVendaMax && { valorVendaMax }),
+        ...(valorLocacaoMin && { valorLocacaoMin }),
+        ...(valorLocacaoMax && { valorLocacaoMax }),
+      }),
     onSuccess: (resultado) => {
       sessionStorage.setItem("revisaoData", JSON.stringify(resultado));
       navigate("/revisao", { state: resultado });
@@ -190,6 +201,74 @@ export function Upload() {
               </FilterOption>
             </FilterOptions>
           </FilterGroup>
+
+          {filtroOperacao !== "locacao" && (
+            <PriceFilterSection>
+              <FilterLabel>Faixa de valor de venda: <span style={{ fontWeight: 400, color: "#6b7280" }}>(opcional)</span></FilterLabel>
+              <PriceFilterRow>
+                <PriceInputGroup>
+                  <PriceInputLabel>De</PriceInputLabel>
+                  <PriceInputWrapper>
+                    <PriceCurrency>R$</PriceCurrency>
+                    <PriceInput
+                      type="number"
+                      min="0"
+                      value={valorVendaMin}
+                      onChange={(e) => setValorVendaMin(e.target.value)}
+                      placeholder="ex: 250000"
+                    />
+                  </PriceInputWrapper>
+                </PriceInputGroup>
+                <PriceInputGroup>
+                  <PriceInputLabel>Até</PriceInputLabel>
+                  <PriceInputWrapper>
+                    <PriceCurrency>R$</PriceCurrency>
+                    <PriceInput
+                      type="number"
+                      min="0"
+                      value={valorVendaMax}
+                      onChange={(e) => setValorVendaMax(e.target.value)}
+                      placeholder="ex: 3000000"
+                    />
+                  </PriceInputWrapper>
+                </PriceInputGroup>
+              </PriceFilterRow>
+            </PriceFilterSection>
+          )}
+
+          {filtroOperacao !== "venda" && (
+            <PriceFilterSection>
+              <FilterLabel>Faixa de valor de locação: <span style={{ fontWeight: 400, color: "#6b7280" }}>(opcional)</span></FilterLabel>
+              <PriceFilterRow>
+                <PriceInputGroup>
+                  <PriceInputLabel>De</PriceInputLabel>
+                  <PriceInputWrapper>
+                    <PriceCurrency>R$</PriceCurrency>
+                    <PriceInput
+                      type="number"
+                      min="0"
+                      value={valorLocacaoMin}
+                      onChange={(e) => setValorLocacaoMin(e.target.value)}
+                      placeholder="ex: 1000"
+                    />
+                  </PriceInputWrapper>
+                </PriceInputGroup>
+                <PriceInputGroup>
+                  <PriceInputLabel>Até</PriceInputLabel>
+                  <PriceInputWrapper>
+                    <PriceCurrency>R$</PriceCurrency>
+                    <PriceInput
+                      type="number"
+                      min="0"
+                      value={valorLocacaoMax}
+                      onChange={(e) => setValorLocacaoMax(e.target.value)}
+                      placeholder="ex: 15000"
+                    />
+                  </PriceInputWrapper>
+                </PriceInputGroup>
+              </PriceFilterRow>
+            </PriceFilterSection>
+          )}
 
           <DropZone
             onClick={() => fileInputRef.current?.click()}

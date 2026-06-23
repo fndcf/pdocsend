@@ -284,6 +284,72 @@ export const ErrorBox = styled.div`
   font-size: ${({ theme }) => theme.fontSize.sm};
 `;
 
+export const PriceFilterSection = styled.div`
+  margin-bottom: 1rem;
+`;
+
+export const PriceFilterRow = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+`;
+
+export const PriceInputGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+`;
+
+export const PriceInputLabel = styled.label`
+  font-size: ${({ theme }) => theme.fontSize.xs};
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`;
+
+export const PriceInputWrapper = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+`;
+
+export const PriceCurrency = styled.span`
+  position: absolute;
+  left: 0.625rem;
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  pointer-events: none;
+  font-weight: 500;
+`;
+
+export const PriceInput = styled.input`
+  width: 100%;
+  padding: 0.5rem 0.5rem 0.5rem 2.25rem;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  color: ${({ theme }) => theme.colors.text};
+  background: white;
+  outline: none;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textSecondary};
+    opacity: 0.6;
+  }
+
+  /* Remove arrows from number input */
+  -moz-appearance: textfield;
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+`;
+
 export const Button = styled.button`
   width: 100%;
   margin-top: 1.5rem;
