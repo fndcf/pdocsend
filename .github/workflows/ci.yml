@@ -107,7 +107,7 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.STAGING_VITE_FIREBASE_APP_ID }}
 
       - name: Deploy to Firebase Staging
-        uses: w9jds/firebase-action@master
+        uses: w9jds/firebase-action@v15.22.1
         with:
           args: deploy --project staging --force
         env:
@@ -148,7 +148,7 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
 
       - name: Deploy to Firebase Production
-        uses: w9jds/firebase-action@master
+        uses: w9jds/firebase-action@v15.22.1
         with:
           args: deploy --project production --force
         env:
