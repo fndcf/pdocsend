@@ -22,9 +22,12 @@ export function ClienteFormModal({ mode, pendente, cliente, onClose, onSuccess }
   const [formToken, setFormToken] = useState("");
   const [formClientToken, setFormClientToken] = useState("");
   const [formLimiteDiario, setFormLimiteDiario] = useState(String(cliente?.limiteDiario || 200));
-  const [formTextoPersonalizado, setFormTextoPersonalizado] = useState(
-    (cliente?.mensagemTemplate as Record<string, string>)?.textoPersonalizado || ""
-  );
+  const [formTemplates, setFormTemplates] = useState<string[]>(() => {
+    const existing = cliente?.mensagemTemplate?.templatesPersonalizados;
+    if (existing && existing.length > 0) return [...existing, ...Array(5 - existing.length).fill("")].slice(0, 5);
+    return Array(5).fill("");
+  });
+  const [activeTemplate, setActiveTemplate] = useState(0);
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -34,6 +37,8 @@ export function ClienteFormModal({ mode, pendente, cliente, onClose, onSuccess }
     setFormError("");
 
     try {
+      const templatesPreenchidos = formTemplates.filter(t => t.trim() !== "");
+
       if (mode === "criar" && pendente) {
         await apiClient.post("/admin/clientes", {
           uid: pendente.uid,
@@ -41,7 +46,7 @@ export function ClienteFormModal({ mode, pendente, cliente, onClose, onSuccess }
           nomeCorretor: formCorretor,
           nomeEmpresa: formEmpresa,
           cargo: formCargo,
-          ...(formTextoPersonalizado && { textoPersonalizado: formTextoPersonalizado }),
+          ...(templatesPreenchidos.length > 0 && { templatesPersonalizados: templatesPreenchidos }),
           zapiInstanceId: formInstanceId,
           zapiToken: formToken,
           zapiClientToken: formClientToken,
@@ -49,12 +54,12 @@ export function ClienteFormModal({ mode, pendente, cliente, onClose, onSuccess }
         });
         onSuccess(`Cliente ${formNome} configurado com sucesso!`);
       } else if (mode === "editar" && cliente) {
-        const body: Record<string, string> = {};
+        const body: Record<string, unknown> = {};
         if (formNome) body.nome = formNome;
         if (formCorretor) body.nomeCorretor = formCorretor;
         if (formEmpresa) body.nomeEmpresa = formEmpresa;
         if (formCargo) body.cargo = formCargo;
-        body.textoPersonalizado = formTextoPersonalizado;
+        body.templatesPersonalizados = templatesPreenchidos;
         if (formInstanceId) body.zapiInstanceId = formInstanceId;
         if (formToken) body.zapiToken = formToken;
         if (formClientToken) body.zapiClientToken = formClientToken;
@@ -137,16 +142,41 @@ export function ClienteFormModal({ mode, pendente, cliente, onClose, onSuccess }
           <Input type="number" value={formLimiteDiario} onChange={(e) => setFormLimiteDiario(e.target.value)} min="1" max="1000" />
         </FormGroup>
         <FormGroup>
-          <Label>Mensagem personalizada{mode === "editar" && " (vazio = texto padrão)"}</Label>
-          <Textarea
-            value={formTextoPersonalizado}
-            onChange={(e) => setFormTextoPersonalizado(e.target.value)}
-            rows={5}
-            placeholder={"{saudacao} {nome}, tudo bem?\nSou o {nomeCorretor}, {cargo} do {nomeEmpresa}. Estou entrando em contato para saber se você tem interesse em conversarmos sobre {operacao}.\n\nFico à disposição!"}
-          />
+          <Label>Templates de mensagem</Label>
           <HelpText>
-            Variáveis: {"{saudacao}"}, {"{nome}"}, {"{nomeCorretor}"}, {"{nomeEmpresa}"}, {"{cargo}"}, {"{operacao}"}
+            Rotação aleatória balanceada · Variáveis: {"{saudacao}"}, {"{nome}"}, {"{nomeCorretor}"}, {"{nomeEmpresa}"}, {"{cargo}"}, {"{operacao}"}
           </HelpText>
+          <TemplateTabs>
+            {formTemplates.map((texto, i) => (
+              <TemplateTab
+                key={i}
+                type="button"
+                $active={activeTemplate === i}
+                $filled={texto.trim() !== ""}
+                onClick={() => setActiveTemplate(i)}
+              >
+                {i + 1}
+                {texto.trim() !== "" && <TemplateDot />}
+              </TemplateTab>
+            ))}
+          </TemplateTabs>
+          <TemplateInfo>
+            Template {activeTemplate + 1}{activeTemplate === 0 ? " (obrigatório)" : " (opcional)"}
+          </TemplateInfo>
+          <Textarea
+            value={formTemplates[activeTemplate]}
+            onChange={(e) => {
+              const novo = [...formTemplates];
+              novo[activeTemplate] = e.target.value;
+              setFormTemplates(novo);
+            }}
+            rows={5}
+            placeholder={
+              activeTemplate === 0
+                ? "{saudacao} {nome}, tudo bem?\nSou o {nomeCorretor}, {cargo} do {nomeEmpresa}.\nEstou entrando em contato sobre {operacao}.\n\nFico à disposição!"
+                : `Template alternativo ${activeTemplate + 1}...`
+            }
+          />
         </FormGroup>
 
         {formError && <ErrorAlert message={formError} />}
@@ -218,6 +248,50 @@ const HelpText = styled.span`
   font-size: ${({ theme }) => theme.fontSize.xs};
   color: ${({ theme }) => theme.colors.textSecondary};
   line-height: 1.4;
+  display: block;
+  margin-bottom: 0.75rem;
+`;
+
+const TemplateTabs = styled.div`
+  display: flex;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
+`;
+
+const TemplateTab = styled.button<{ $active: boolean; $filled: boolean }>`
+  position: relative;
+  width: 2rem;
+  height: 2rem;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  border: 1.5px solid ${({ $active, $filled, theme }) =>
+    $active ? theme.colors.primary : $filled ? theme.colors.primary + "66" : theme.colors.border};
+  background: ${({ $active, theme }) => $active ? theme.colors.primary : "transparent"};
+  color: ${({ $active, theme }) => $active ? "white" : theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.fontSize.sm};
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  &:hover:not(:disabled) {
+    border-color: ${({ theme }) => theme.colors.primary};
+    color: ${({ $active, theme }) => $active ? "white" : theme.colors.primary};
+  }
+`;
+
+const TemplateDot = styled.span`
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: ${({ theme }) => theme.colors.primary};
+`;
+
+const TemplateInfo = styled.div`
+  font-size: ${({ theme }) => theme.fontSize.xs};
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  margin-bottom: 0.375rem;
 `;
 
 const SubmitButton = styled.button`

@@ -16,6 +16,7 @@ export interface MensagemTemplate {
   nomeEmpresa: string;
   cargo: string;
   textoPersonalizado?: string;
+  templatesPersonalizados?: string[];
 }
 
 export interface User {

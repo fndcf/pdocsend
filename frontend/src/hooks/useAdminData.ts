@@ -6,7 +6,7 @@ import { queryKeys } from "@/types";
 interface Cliente {
   id: string;
   nome: string;
-  mensagemTemplate: { nomeCorretor: string; nomeEmpresa: string; cargo: string };
+  mensagemTemplate: { nomeCorretor: string; nomeEmpresa: string; cargo: string; textoPersonalizado?: string; templatesPersonalizados?: string[] };
   zapiInstanceId: string;
   limiteDiario: number;
   usuarios: Array<{ uid: string; email: string; nome: string }>;

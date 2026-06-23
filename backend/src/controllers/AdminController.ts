@@ -98,6 +98,7 @@ class AdminController {
         nomeEmpresa,
         cargo,
         textoPersonalizado,
+        templatesPersonalizados,
         zapiInstanceId,
         zapiToken,
         zapiClientToken,
@@ -124,6 +125,7 @@ class AdminController {
           nomeEmpresa,
           cargo: cargo || "corretor",
           ...(textoPersonalizado && { textoPersonalizado }),
+          ...(templatesPersonalizados && { templatesPersonalizados }),
         },
         limiteDiario,
       });
@@ -155,7 +157,7 @@ class AdminController {
   async editarCliente(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { nome, nomeCorretor, nomeEmpresa, cargo, textoPersonalizado, zapiInstanceId, zapiToken, zapiClientToken, limiteDiario } = req.body;
+      const { nome, nomeCorretor, nomeEmpresa, cargo, textoPersonalizado, templatesPersonalizados, zapiInstanceId, zapiToken, zapiClientToken, limiteDiario } = req.body;
 
       const tenant = await tenantRepository.buscarPorId(id);
 
@@ -170,13 +172,14 @@ class AdminController {
       if (zapiToken) updateData.zapiToken = encrypt(zapiToken);
       if (zapiClientToken) updateData.zapiClientToken = encrypt(zapiClientToken);
       if (limiteDiario) updateData.limiteDiario = limiteDiario;
-      if (nomeCorretor || nomeEmpresa || cargo || textoPersonalizado !== undefined) {
+      if (nomeCorretor || nomeEmpresa || cargo || textoPersonalizado !== undefined || templatesPersonalizados !== undefined) {
         const currentTemplate = tenant.mensagemTemplate || {};
         updateData.mensagemTemplate = {
           nomeCorretor: nomeCorretor || currentTemplate.nomeCorretor,
           nomeEmpresa: nomeEmpresa || currentTemplate.nomeEmpresa,
           cargo: cargo || currentTemplate.cargo,
           ...(textoPersonalizado !== undefined && { textoPersonalizado }),
+          ...(templatesPersonalizados !== undefined && { templatesPersonalizados }),
         };
       }
 

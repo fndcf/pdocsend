@@ -26,6 +26,7 @@ jest.mock("../../services/MessageBuilderService", () => ({
   default: {
     montarNomeContato: jest.fn(() => "Contato - Edificio"),
     montarMensagemPreview: jest.fn(() => "Bom dia, tudo bem?"),
+    gerarIndicesBalanceados: jest.fn((total: number) => Array.from({ length: total }, (_, i) => i % 5)),
   },
 }));
 

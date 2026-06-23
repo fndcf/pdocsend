@@ -10,10 +10,10 @@ class MessageBuilderService {
   /**
    * Monta a mensagem personalizada para um contato
    */
-  montarMensagem(contato: Contato, template: MensagemTemplate): string {
+  montarMensagem(contato: Contato, template: MensagemTemplate, templateIndex = 0): string {
     const saudacao = getSaudacao();
     return this.aplicarVariaveis(
-      this.getTextoTemplate(template),
+      this.getTextoTemplate(template, templateIndex),
       contato,
       template,
       saudacao
@@ -23,9 +23,9 @@ class MessageBuilderService {
   /**
    * Monta a mensagem com saudação fixa (para preview na tela de revisão)
    */
-  montarMensagemPreview(contato: Contato, template: MensagemTemplate): string {
+  montarMensagemPreview(contato: Contato, template: MensagemTemplate, templateIndex = 0): string {
     return this.aplicarVariaveis(
-      this.getTextoTemplate(template),
+      this.getTextoTemplate(template, templateIndex),
       contato,
       template,
       "{saudação}"
@@ -33,9 +33,34 @@ class MessageBuilderService {
   }
 
   /**
-   * Retorna o texto do template (customizado ou padrao)
+   * Gera array de índices de templates balanceado e embaralhado (Fisher-Yates).
+   * Ex: 20 contatos, 5 templates → [2,0,4,1,3,0,4,2,3,1,...] — 4 de cada, ordem aleatória.
    */
-  private getTextoTemplate(template: MensagemTemplate): string {
+  gerarIndicesBalanceados(totalContatos: number, totalTemplates: number): number[] {
+    if (totalTemplates <= 1) return Array(totalContatos).fill(0);
+
+    const indices: number[] = [];
+    for (let i = 0; i < totalContatos; i++) {
+      indices.push(i % totalTemplates);
+    }
+
+    // Fisher-Yates shuffle
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+
+    return indices;
+  }
+
+  /**
+   * Retorna o texto do template (array rotativo, texto único ou padrão).
+   */
+  private getTextoTemplate(template: MensagemTemplate, index: number): string {
+    const templates = template.templatesPersonalizados?.filter(Boolean);
+    if (templates && templates.length > 0) {
+      return templates[index % templates.length];
+    }
     if (template.textoPersonalizado) {
       return template.textoPersonalizado;
     }

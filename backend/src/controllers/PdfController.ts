@@ -112,13 +112,18 @@ class PdfController {
         cargo: "corretor",
       };
 
-      // 5. Gerar preview das mensagens
+      // 5. Gerar preview das mensagens com rotação balanceada de templates
+      const novosCount = contatosComStatus.filter((c) => c.status === "novo").length;
+      const numTemplates = template.templatesPersonalizados?.filter(Boolean).length || 1;
+      const indicesTemplates = messageBuilderService.gerarIndicesBalanceados(novosCount, numTemplates);
+      let novoIdx = 0;
+
       const resultado = contatosComStatus.map((contato) => ({
         ...contato,
         nomeContato: messageBuilderService.montarNomeContato(contato),
         mensagemPreview:
           contato.status === "novo"
-            ? messageBuilderService.montarMensagemPreview(contato, template)
+            ? messageBuilderService.montarMensagemPreview(contato, template, indicesTemplates[novoIdx++])
             : "",
       }));
 
